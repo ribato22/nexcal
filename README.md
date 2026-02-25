@@ -1,8 +1,9 @@
 <h1 align="center">🗓️ NexCal</h1>
 
 <p align="center">
-  <strong>Free &amp; Open-Source Appointment Booking System</strong><br/>
-  A self-hosted Calendly alternative — privacy-first, Docker-ready, works for any appointment-based business.
+  <strong>Free &amp; Open-Source Multi-Provider Booking System</strong><br/>
+  A self-hosted Calendly alternative for teams — clinics, salons, studios, and any business with multiple practitioners.<br/>
+  B2B SaaS architecture. Privacy-first. Docker-ready. Zero subscription fees.
 </p>
 
 <p align="center">
@@ -19,31 +20,41 @@
 
 ## ✨ What is NexCal?
 
-**NexCal** is a modern, self-hosted appointment scheduling system for **any business that takes appointments** — barbershops, beauty salons, consulting firms, photography studios, auto repair shops, clinics, tutors, and more.
+**NexCal** is a modern, self-hosted appointment scheduling system built for **teams and multi-provider businesses** — clinics with multiple doctors, salons with many stylists, consulting firms, studios, and more.
 
-Think of it as a **free Calendly** that you own, control, and can customize. No subscription fees, no vendor lock-in. Deploy with a single `docker compose up` command and you're live.
+Think of it as a **free Calendly for teams** that you own, control, and customize. B2B SaaS architecture with Role-Based Access Control, zero vendor lock-in. Deploy with a single `docker compose up` and you're live.
 
 ---
 
 ## 🎯 Key Features
 
-### For Customers (Public Booking Page)
-- 🏷️ **Service Selection** — Browse available services with descriptions and durations
+### 🏢 Multi-Provider & Team Management
+- **Organization-first architecture** — All staff belong to a single org, data is isolated by default
+- **Role-Based Access Control (RBAC):** `OWNER` manages the entire team and sees all bookings/services; `STAFF` only manages their own schedule, services, and bookings
+- **Staff Management Page** — Add new practitioners with one click (OWNER-only)
+- **Provider Selection in Booking** — Customers choose their practitioner before picking a service
+- **Auto-skip logic** — If only 1 provider exists, the step is seamlessly skipped
+
+### 👤 For Customers (Public Booking Page)
+- 🧑‍⚕️ **Provider Selector** — Choose your practitioner (doctor, stylist, therapist)
+- 🏷️ **Filtered Services** — Only shows services offered by the selected provider
 - 📅 **Smart Calendar** — Only shows open dates; blocked dates auto-handled
-- ⏰ **Real-time Slot Picker** — Slots generated live from your schedule
+- ⏰ **Real-time Slot Picker** — Slots generated live from the provider's schedule
 - 📝 **Simple Booking Form** — Name, phone number, and optional notes
 
-### For Business Owners (Admin Dashboard)
+### 🏥 For Admins (Dashboard)
 - 📊 **Live Dashboard** — Pending count, today's schedule, weekly completions
-- 📋 **Booking Management** — Filter, search, and manage all reservations
+- 📋 **Booking Management** — Filter, search, manage reservations (OWNER sees all staff; STAFF sees own)
 - ✅ **Status Actions** — Confirm, Complete, Cancel (with reason), No-Show
 - 🗓️ **Schedule Editor** — Set operating hours per day with multiple sessions
 - 📅 **Date Overrides** — Block holidays, vacations, or special dates
-- 🏷️ **Service Management** — CRUD services with custom colors and durations
-- 🔒 **Secure Auth** — Cookie-based authentication with bcrypt password hashing
+- 🏷️ **Service Management** — Create services with custom colors and durations
+- 👥 **Staff Column** — OWNER view shows which practitioner handles each booking/service
+
+### 🔗 Integrations
 - 📢 **WhatsApp Reminders** — Auto-notify customers via [MultiWA](https://github.com/ribato22/MultiWA) (optional)
-- 📆 **Google Calendar Sync** — Confirmed bookings auto-pushed to admin's Google Calendar (optional)
-- 🏢 **Multi-Provider** — Organizations with OWNER + STAFF roles, RBAC-scoped data access
+- 📆 **Google Calendar Sync** — Confirmed bookings auto-pushed to provider's Google Calendar (optional)
+- 🔒 **Secure Auth** — Cookie-based authentication with bcrypt password hashing
 
 ### 🛡️ 3-Layer Anti Double-Booking System
 
@@ -102,16 +113,17 @@ open http://localhost:3000
 
 The first launch will automatically:
 - ✅ Create database tables (Prisma migrations)
-- ✅ Seed demo data (admin user + 5 services + sample bookings)
+- ✅ Seed demo data (1 org, 3 users, services, schedules, bookings)
 
-### Default Login
+### Default Logins (Multi-Provider Demo)
 
-| Field | Value |
-|-------|-------|
-| Email | `bidan.sari@kliniku.com` |
-| Password | `REDACTED_SEED_PASSWORD` |
+| Role | Email | Password |
+|------|-------|----------|
+| 👑 OWNER | `admin@kliniku.com` | `REDACTED_SEED_PASSWORD` |
+| 👤 STAFF | `dr.budi@kliniku.com` | `REDACTED_SEED_PASSWORD` |
+| 👤 STAFF | `bidan.sari@kliniku.com` | `REDACTED_SEED_PASSWORD` |
 
-> ⚠️ **Change the default password immediately after your first login!**
+> ⚠️ **Change the default passwords immediately after your first login!**
 
 ### Local Development
 
@@ -198,6 +210,7 @@ Contributions, issues, and feature requests are welcome!
 - [x] WhatsApp booking reminders (via [MultiWA](https://github.com/ribato22/MultiWA))
 - [x] Google Calendar sync (1-way push on confirm)
 - [x] Multi-provider support (organizations with OWNER/STAFF roles)
+- [x] Staff management UI & provider-aware booking wizard
 - [ ] Customer appointment history portal
 - [ ] Analytics dashboard with charts
 
