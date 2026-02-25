@@ -1,12 +1,12 @@
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { getDataScope } from "@/lib/rbac";
 
 export default async function ServicesPage() {
-  const session = await auth();
-  if (!session?.user?.id) return null;
+  const scope = await getDataScope();
+  if (!scope) return null;
 
   const services = await prisma.serviceType.findMany({
-    where: { userId: session.user.id },
+    where: scope.userFilter,
     orderBy: { name: "asc" },
   });
 
@@ -25,7 +25,7 @@ export default async function ServicesPage() {
         {/* CTA — CRUD write akan di Sprint 1.5 / Sprint 2 */}
         <button
           disabled
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-2.5 text-sm font-semibold text-white opacity-50 shadow-lg shadow-blue-500/20 cursor-not-allowed"
+          className="flex items-center gap-2 rounded-xl bg-linear-to-r from-blue-600 to-cyan-500 px-4 py-2.5 text-sm font-semibold text-white opacity-50 shadow-lg shadow-blue-500/20 cursor-not-allowed"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />

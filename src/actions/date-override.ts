@@ -1,9 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { getDataScope } from "@/lib/rbac";
 
 // ============================================================
 // Schemas
@@ -23,14 +23,15 @@ const createOverrideSchema = z.object({
 
 /**
  * Membuat date override (libur/cuti/jam khusus).
+ * Always self-scoped — both OWNER and STAFF create overrides for themselves.
  */
 export async function createDateOverrideAction(
   _prevState: { error: string | null; success: boolean },
   formData: FormData
 ): Promise<{ error: string | null; success: boolean }> {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const scope = await getDataScope();
+    if (!scope) {
       return { error: "Unauthorized", success: false };
     }
 
@@ -58,10 +59,10 @@ export async function createDateOverrideAction(
       };
     }
 
-    // Cek duplikasi tanggal
+    // Cek duplikasi tanggal (always self-scoped)
     const existing = await prisma.dateOverride.findFirst({
       where: {
-        userId: session.user.id,
+        userId: scope.currentUserId,
         date: new Date(date),
       },
     });
@@ -80,7 +81,7 @@ export async function createDateOverrideAction(
     } else {
       await prisma.dateOverride.create({
         data: {
-          userId: session.user.id,
+          userId: scope.currentUserId,
           date: new Date(date),
           isBlocked,
           startTime,
@@ -99,13 +100,14 @@ export async function createDateOverrideAction(
 
 /**
  * Menghapus date override.
+ * Self-scoped: user can only delete their own overrides.
  */
 export async function deleteDateOverrideAction(id: string) {
-  const session = await auth();
-  if (!session?.user?.id) return;
+  const scope = await getDataScope();
+  if (!scope) return;
 
   await prisma.dateOverride.delete({
-    where: { id, userId: session.user.id },
+    where: { id, userId: scope.currentUserId },
   });
 
   revalidatePath("/admin/schedule");
@@ -113,13 +115,14 @@ export async function deleteDateOverrideAction(id: string) {
 
 /**
  * Mengambil semua date overrides.
+ * OWNER: sees all org overrides. STAFF: sees own only.
  */
 export async function getDateOverrides() {
-  const session = await auth();
-  if (!session?.user?.id) return [];
+  const scope = await getDataScope();
+  if (!scope) return [];
 
   return prisma.dateOverride.findMany({
-    where: { userId: session.user.id },
+    where: scope.userFilter,
     orderBy: { date: "asc" },
   });
 }

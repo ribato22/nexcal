@@ -1,9 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { getDataScope } from "@/lib/rbac";
 
 // ============================================================
 // Schemas
@@ -25,15 +25,16 @@ const bulkScheduleSchema = z.object({
 
 /**
  * Menyimpan jadwal operasional mingguan secara bulk.
- * Menghapus semua jadwal lama dan mengganti dengan yang baru.
+ * STAFF: selalu menyimpan jadwal sendiri.
+ * OWNER: juga menyimpan jadwal sendiri (bukan seluruh org).
  */
 export async function saveScheduleAction(
   _prevState: { error: string | null; success: boolean },
   formData: FormData
 ): Promise<{ error: string | null; success: boolean }> {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const scope = await getDataScope();
+    if (!scope) {
       return { error: "Unauthorized", success: false };
     }
 
@@ -56,15 +57,15 @@ export async function saveScheduleAction(
       }
     }
 
-    // Transaction: hapus lama, masukkan baru
+    // Transaction: hapus lama, masukkan baru (always self-scoped)
     await prisma.$transaction([
       prisma.schedule.deleteMany({
-        where: { userId: session.user.id },
+        where: { userId: scope.currentUserId },
       }),
       ...sessions.map((s) =>
         prisma.schedule.create({
           data: {
-            userId: session.user.id,
+            userId: scope.currentUserId,
             dayOfWeek: s.dayOfWeek,
             startTime: s.startTime,
             endTime: s.endTime,
@@ -82,13 +83,15 @@ export async function saveScheduleAction(
 
 /**
  * Mengambil semua jadwal operasional.
+ * OWNER: sees all org schedules.
+ * STAFF: sees own schedules only.
  */
 export async function getSchedules() {
-  const session = await auth();
-  if (!session?.user?.id) return [];
+  const scope = await getDataScope();
+  if (!scope) return [];
 
   return prisma.schedule.findMany({
-    where: { userId: session.user.id },
+    where: scope.userFilter,
     orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
   });
 }

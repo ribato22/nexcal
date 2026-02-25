@@ -43,6 +43,7 @@ Think of it as a **free Calendly** that you own, control, and can customize. No 
 - 🔒 **Secure Auth** — Cookie-based authentication with bcrypt password hashing
 - 📢 **WhatsApp Reminders** — Auto-notify customers via [MultiWA](https://github.com/ribato22/MultiWA) (optional)
 - 📆 **Google Calendar Sync** — Confirmed bookings auto-pushed to admin's Google Calendar (optional)
+- 🏢 **Multi-Provider** — Organizations with OWNER + STAFF roles, RBAC-scoped data access
 
 ### 🛡️ 3-Layer Anti Double-Booking System
 
@@ -196,7 +197,7 @@ Contributions, issues, and feature requests are welcome!
 
 - [x] WhatsApp booking reminders (via [MultiWA](https://github.com/ribato22/MultiWA))
 - [x] Google Calendar sync (1-way push on confirm)
-- [ ] Multi-provider support (businesses with multiple staff)
+- [x] Multi-provider support (organizations with OWNER/STAFF roles)
 - [ ] Customer appointment history portal
 - [ ] Analytics dashboard with charts
 
