@@ -48,7 +48,7 @@ export default async function ServicesPage() {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {services.map((service) => (
+          {services.map((service: { id: string; name: string; duration: number; description: string | null; isActive: boolean; color: string | null }) => (
             <ServiceCard key={service.id} service={service} />
           ))}
         </div>
