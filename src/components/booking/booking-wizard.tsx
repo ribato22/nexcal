@@ -29,8 +29,19 @@ interface Service {
   id: string;
   name: string;
   duration: number;
+  price: number;
+  dpPercentage: number;
   description: string | null;
   color: string | null;
+}
+
+function formatRupiah(amount: number): string {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
 
 interface TimeSlot {
@@ -194,6 +205,20 @@ function ServiceSelector({
                 </svg>
                 {durationLabel}
               </span>
+              <div className="mt-2 flex items-center gap-2">
+                <span className={`inline-flex items-center rounded-lg px-2 py-0.5 text-xs font-bold ${
+                  s.price > 0
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "bg-slate-100 text-slate-500"
+                }`}>
+                  {s.price > 0 ? formatRupiah(s.price) : "Gratis"}
+                </span>
+                {s.price > 0 && s.dpPercentage > 0 && s.dpPercentage < 100 && (
+                  <span className="inline-flex items-center rounded-lg bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                    DP {s.dpPercentage}%
+                  </span>
+                )}
+              </div>
               {isActive && (
                 <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-blue-500">
                   <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
@@ -518,17 +543,30 @@ function BookingForm({
 // ============================================================
 // Booking Success
 // ============================================================
-function BookingSuccess({ summary }: { summary: { serviceName: string; date: string; time: string; patientName: string } }) {
+function BookingSuccess({ summary }: { summary: { serviceName: string; date: string; time: string; patientName: string; paymentUrl?: string; totalPrice?: number } }) {
+  const needsPayment = !!summary.paymentUrl && (summary.totalPrice ?? 0) > 0;
+
   return (
     <div className="py-6 text-center">
-      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-        <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-        </svg>
+      <div className={`mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full ${needsPayment ? "bg-amber-100" : "bg-green-100"}`}>
+        {needsPayment ? (
+          <svg className="h-8 w-8 text-amber-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
+          </svg>
+        ) : (
+          <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+          </svg>
+        )}
       </div>
-      <h2 className="text-xl font-bold text-slate-900">Reservasi Berhasil! 🎉</h2>
+      <h2 className="text-xl font-bold text-slate-900">
+        {needsPayment ? "Reservasi Tercatat! 📋" : "Reservasi Berhasil! 🎉"}
+      </h2>
       <p className="mt-2 text-sm text-slate-500">
-        Terima kasih, {summary.patientName}. Reservasi Anda telah tercatat.
+        {needsPayment
+          ? `Terima kasih, ${summary.patientName}. Silakan selesaikan pembayaran untuk mengonfirmasi.`
+          : `Terima kasih, ${summary.patientName}. Reservasi Anda telah tercatat.`
+        }
       </p>
 
       <div className="mx-auto mt-6 max-w-sm rounded-xl border border-slate-200 bg-slate-50 p-4 text-left">
@@ -550,14 +588,38 @@ function BookingSuccess({ summary }: { summary: { serviceName: string; date: str
             <span className="text-slate-500">Pukul</span>
             <span className="font-medium text-slate-900">{summary.time} WIB</span>
           </div>
+          {summary.totalPrice != null && summary.totalPrice > 0 && (
+            <>
+              <div className="my-2 border-t border-dashed border-slate-200" />
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Pembayaran</span>
+                <span className="font-bold text-emerald-700">{formatRupiah(summary.totalPrice)}</span>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
-      <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
-        <p className="text-xs text-blue-600">
-          💡 Status reservasi: <span className="font-semibold">PENDING</span>. Anda akan mendapat konfirmasi dari admin.
-        </p>
-      </div>
+      {/* Payment CTA */}
+      {needsPayment && (
+        <a
+          href={summary.paymentUrl}
+          className="mt-6 inline-flex w-full max-w-sm items-center justify-center gap-2 rounded-xl bg-linear-to-r from-emerald-600 to-teal-500 px-6 py-4 text-sm font-bold text-white shadow-lg shadow-emerald-500/20 transition-all hover:shadow-xl hover:brightness-110 active:scale-[0.98]"
+        >
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
+          </svg>
+          💳 Bayar Sekarang — {formatRupiah(summary.totalPrice!)}
+        </a>
+      )}
+
+      {!needsPayment && (
+        <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+          <p className="text-xs text-blue-600">
+            💡 Status reservasi: <span className="font-semibold">PENDING</span>. Anda akan mendapat konfirmasi dari admin.
+          </p>
+        </div>
+      )}
 
       <button
         type="button"
