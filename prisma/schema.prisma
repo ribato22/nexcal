@@ -1,6 +1,6 @@
 // prisma/schema.prisma
-// Self-Hosted Booking System — Database Schema
-// Use-case: Praktik Mandiri Bidan / Klinik Faskes
+// NexCal v2.0 — Multi-Provider Booking System
+// Supports Organizations with multiple Providers (Staff)
 
 generator client {
   provider = "prisma-client-js"
@@ -11,18 +11,41 @@ datasource db {
 }
 
 // ============================================================
-// MODEL: User (Admin / Provider)
+// MODEL: Organization (Bisnis / Klinik / Studio)
 // ============================================================
-// Representasi tenaga medis atau admin klinik yang mengelola jadwal.
+// Entitas induk yang menaungi semua staf dan layanan.
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique  // URL-friendly: "barbershop-jaya"
+  logoUrl   String?  @map("logo_url")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  members User[]
+
+  @@map("organizations")
+}
+
+// ============================================================
+// MODEL: User (Owner / Staff Provider)
+// ============================================================
+// OWNER: melihat semua data organisasi, manage semua staf
+// STAFF: hanya melihat & mengelola data sendiri
 model User {
   id             String   @id @default(cuid())
   email          String   @unique
   hashedPassword String   @map("hashed_password")
   name           String
-  role           Role     @default(PROVIDER)
+  role           Role     @default(STAFF)
   clinicName     String?  @map("clinic_name")
   clinicAddress  String?  @map("clinic_address")
   phone          String?
+
+  // Organization
+  organizationId String?       @map("organization_id")
+  organization   Organization? @relation(fields: [organizationId], references: [id])
 
   // Google Calendar Integration (OAuth 2.0)
   googleAccessToken  String?  @map("google_access_token")
@@ -42,15 +65,14 @@ model User {
 }
 
 enum Role {
-  ADMIN
-  PROVIDER
+  OWNER
+  STAFF
 }
 
 // ============================================================
 // MODEL: ServiceType (Jenis Layanan)
 // ============================================================
 // Jenis layanan yang ditawarkan, menentukan durasi slot.
-// Contoh: "Pemeriksaan Kehamilan (30 menit)", "Imunisasi (15 menit)"
 model ServiceType {
   id          String  @id @default(cuid())
   name        String
@@ -71,7 +93,6 @@ model ServiceType {
 // MODEL: Schedule (Jam Operasional Mingguan)
 // ============================================================
 // Mengatur ketersediaan provider per hari dalam seminggu.
-// Mendukung multiple sesi per hari (pagi + sore).
 model Schedule {
   id        String  @id @default(cuid())
   dayOfWeek Int     @map("day_of_week") // 0=Minggu, 1=Senin, ..., 6=Sabtu
@@ -91,11 +112,10 @@ model Schedule {
 // ============================================================
 // MODEL: DateOverride (Override Tanggal Spesifik)
 // ============================================================
-// Untuk menutup/mengubah jam pada tanggal tertentu (libur, cuti, dll).
 model DateOverride {
   id        String   @id @default(cuid())
   date      DateTime @db.Date
-  isBlocked Boolean  @default(true) @map("is_blocked") // true = libur total
+  isBlocked Boolean  @default(true) @map("is_blocked")
   startTime String?  @map("start_time")
   endTime   String?  @map("end_time")
   reason    String?
@@ -109,17 +129,16 @@ model DateOverride {
 }
 
 // ============================================================
-// MODEL: Booking (Reservasi Pasien)
+// MODEL: Booking (Reservasi)
 // ============================================================
-// Inti dari sistem: data reservasi pasien.
 model Booking {
   id              String        @id @default(cuid())
   status          BookingStatus @default(PENDING)
   date            DateTime      @db.Date
-  startTime       DateTime      @map("start_time")  // timestamptz
-  endTime         DateTime      @map("end_time")     // timestamptz
+  startTime       DateTime      @map("start_time")
+  endTime         DateTime      @map("end_time")
 
-  // Data Pasien
+  // Data Pelanggan
   patientName     String        @map("patient_name")
   patientPhone    String        @map("patient_phone")
   patientNotes    String?       @map("patient_notes")

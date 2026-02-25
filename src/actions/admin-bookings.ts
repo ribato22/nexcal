@@ -1,12 +1,12 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, format } from "date-fns";
 import { notifyBookingConfirmed, notifyBookingCancelled } from "@/lib/whatsapp";
 import { pushBookingToCalendar } from "@/lib/gcal";
+import { getDataScope } from "@/lib/rbac";
 
 // ============================================================
 // Tipe & Interface
@@ -33,20 +33,23 @@ export interface BookingWithService {
     duration: number;
     color: string | null;
   };
+  user?: {
+    name: string;
+  };
 }
 
 // ============================================================
-// getBookings — Ambil daftar reservasi dengan filter
+// getBookings — Ambil daftar reservasi dengan filter (RBAC)
 // ============================================================
 
 export async function getBookings(
   filters?: BookingFilters
 ): Promise<BookingWithService[]> {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
+  const scope = await getDataScope();
+  if (!scope) throw new Error("Unauthorized");
 
   const where: Record<string, unknown> = {
-    userId: session.user.id,
+    ...scope.userFilter,
   };
 
   // Filter status
@@ -77,11 +80,11 @@ export async function getBookings(
       cancelReason: true,
       createdAt: true,
       serviceType: {
-        select: {
-          name: true,
-          duration: true,
-          color: true,
-        },
+        select: { name: true, duration: true, color: true },
+      },
+      // OWNER sees provider name per booking
+      user: {
+        select: { name: true },
       },
     },
     orderBy: [{ date: "desc" }, { startTime: "desc" }],
@@ -89,7 +92,7 @@ export async function getBookings(
 }
 
 // ============================================================
-// updateBookingStatus — Ubah status reservasi
+// updateBookingStatus — Ubah status reservasi (RBAC)
 // ============================================================
 
 const updateStatusSchema = z.object({
@@ -107,8 +110,8 @@ export async function updateBookingStatus(
   formData: FormData
 ): Promise<UpdateStatusResult> {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const scope = await getDataScope();
+    if (!scope) {
       return { success: false, error: "Sesi tidak valid. Silakan login ulang." };
     }
 
@@ -128,9 +131,9 @@ export async function updateBookingStatus(
 
     const { bookingId, status, cancelReason } = parsed.data;
 
-    // Ambil booking + layanan + pemilik
+    // Ambil booking — RBAC: OWNER bisa akses semua booking org, STAFF hanya miliknya
     const booking = await prisma.booking.findFirst({
-      where: { id: bookingId, userId: session.user.id },
+      where: { id: bookingId, ...scope.userFilter },
       include: {
         serviceType: { select: { name: true, duration: true } },
         user: { select: { clinicName: true } },
@@ -165,7 +168,7 @@ export async function updateBookingStatus(
       notifyBookingConfirmed(notifInfo);
       // Push to Google Calendar (fire-and-forget)
       pushBookingToCalendar({
-        userId: session.user.id,
+        userId: booking.userId,
         patientName: booking.patientName,
         patientPhone: booking.patientPhone,
         serviceName: booking.serviceType.name,
@@ -188,7 +191,7 @@ export async function updateBookingStatus(
 }
 
 // ============================================================
-// getDashboardStats — Statistik dashboard real-time
+// getDashboardStats — Statistik dashboard real-time (RBAC)
 // ============================================================
 
 export interface DashboardStats {
@@ -199,26 +202,25 @@ export interface DashboardStats {
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
+  const scope = await getDataScope();
+  if (!scope) throw new Error("Unauthorized");
 
-  const userId = session.user.id;
   const now = new Date();
   const todayStart = startOfDay(now);
   const todayEnd = endOfDay(now);
-  const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // Senin
+  const weekStart = startOfWeek(now, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
 
   const [pendingCount, todayCount, completedThisWeek, activeServices] =
     await Promise.all([
-      // Reservasi PENDING
+      // Reservasi PENDING — scope by role
       prisma.booking.count({
-        where: { userId, status: "PENDING" },
+        where: { ...scope.userFilter, status: "PENDING" },
       }),
       // Jadwal hari ini (PENDING + CONFIRMED)
       prisma.booking.count({
         where: {
-          userId,
+          ...scope.userFilter,
           date: { gte: todayStart, lte: todayEnd },
           status: { in: ["PENDING", "CONFIRMED"] },
         },
@@ -226,14 +228,14 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       // Selesai minggu ini
       prisma.booking.count({
         where: {
-          userId,
+          ...scope.userFilter,
           status: "COMPLETED",
           updatedAt: { gte: weekStart, lte: weekEnd },
         },
       }),
       // Layanan aktif
       prisma.serviceType.count({
-        where: { userId, isActive: true },
+        where: { ...scope.userFilter, isActive: true },
       }),
     ]);
 
@@ -241,18 +243,18 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 }
 
 // ============================================================
-// getTodayBookings — Booking hari ini untuk dashboard
+// getTodayBookings — Booking hari ini untuk dashboard (RBAC)
 // ============================================================
 
 export async function getTodayBookings(): Promise<BookingWithService[]> {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
+  const scope = await getDataScope();
+  if (!scope) throw new Error("Unauthorized");
 
   const now = new Date();
 
   return prisma.booking.findMany({
     where: {
-      userId: session.user.id,
+      ...scope.userFilter,
       date: { gte: startOfDay(now), lte: endOfDay(now) },
       status: { in: ["PENDING", "CONFIRMED"] },
     },
@@ -269,6 +271,9 @@ export async function getTodayBookings(): Promise<BookingWithService[]> {
       createdAt: true,
       serviceType: {
         select: { name: true, duration: true, color: true },
+      },
+      user: {
+        select: { name: true },
       },
     },
     orderBy: { startTime: "asc" },

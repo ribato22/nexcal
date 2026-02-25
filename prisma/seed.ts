@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { PrismaClient, Role, BookingStatus } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { hash } from "bcryptjs";
 
@@ -7,12 +7,56 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  console.log("🌱 Memulai seeding database...\n");
+  console.log("🌱 Seeding NexCal v2.0 (Multi-Provider)...\n");
 
   // ============================================================
-  // 1. Buat User Admin (Bidan Sari)
+  // 1. Organization
+  // ============================================================
+  const org = await prisma.organization.upsert({
+    where: { slug: "klinik-sehat-utama" },
+    update: {},
+    create: {
+      name: "Klinik Sehat Utama",
+      slug: "klinik-sehat-utama",
+    },
+  });
+  console.log(`✅ Organization: ${org.name} (${org.slug})`);
+
+  // ============================================================
+  // 2. Users: 1 OWNER + 2 STAFF
   // ============================================================
   const hashedPassword = await hash("REDACTED_SEED_PASSWORD", 12);
+
+  const owner = await prisma.user.upsert({
+    where: { email: "admin@kliniku.com" },
+    update: {},
+    create: {
+      email: "admin@kliniku.com",
+      hashedPassword,
+      name: "Admin Utama",
+      role: "OWNER",
+      clinicName: "Klinik Sehat Utama",
+      clinicAddress: "Jl. Kesehatan No. 1, Batam",
+      phone: "08121234567",
+      organizationId: org.id,
+    },
+  });
+  console.log(`✅ OWNER: ${owner.name} (${owner.email})`);
+
+  const drBudi = await prisma.user.upsert({
+    where: { email: "dr.budi@kliniku.com" },
+    update: {},
+    create: {
+      email: "dr.budi@kliniku.com",
+      hashedPassword,
+      name: "Dr. Budi Santoso",
+      role: "STAFF",
+      clinicName: "Klinik Sehat Utama",
+      phone: "08129876543",
+      organizationId: org.id,
+    },
+  });
+  console.log(`✅ STAFF: ${drBudi.name} (${drBudi.email})`);
 
   const bidanSari = await prisma.user.upsert({
     where: { email: "bidan.sari@kliniku.com" },
@@ -20,269 +64,256 @@ async function main() {
     create: {
       email: "bidan.sari@kliniku.com",
       hashedPassword,
-      name: "Bidan Sari, Amd.Keb",
-      role: Role.PROVIDER,
-      clinicName: "Praktik Mandiri Bidan Sari",
-      clinicAddress: "Jl. Kesehatan No. 42, Batam",
-      phone: "08123456789",
+      name: "Bidan Sari Dewi",
+      role: "STAFF",
+      clinicName: "Klinik Sehat Utama",
+      phone: "08131234567",
+      organizationId: org.id,
+    },
+  });
+  console.log(`✅ STAFF: ${bidanSari.name} (${bidanSari.email})`);
+
+  // ============================================================
+  // 3. Services — Different per Staff
+  // ============================================================
+
+  // Dr. Budi's services
+  const konsultasiUmum = await prisma.serviceType.upsert({
+    where: { id: "svc-konsultasi-umum" },
+    update: {},
+    create: {
+      id: "svc-konsultasi-umum",
+      name: "Konsultasi Umum",
+      duration: 30,
+      description: "Pemeriksaan dan konsultasi kesehatan umum.",
+      color: "#3B82F6",
+      userId: drBudi.id,
     },
   });
 
-  console.log(`✅ User dibuat: ${bidanSari.name} (${bidanSari.email})`);
-  console.log(`   Password: REDACTED_SEED_PASSWORD\n`);
-
-  // ============================================================
-  // 2. Buat Jenis Layanan (ServiceType)
-  // ============================================================
-  const services = [
-    {
-      name: "Pemeriksaan Kehamilan (ANC)",
-      duration: 30,
-      description:
-        "Pemeriksaan rutin kehamilan meliputi tekanan darah, berat badan, tinggi fundus, dan detak jantung janin.",
-      color: "#EC4899", // Pink
+  const medicalCheckup = await prisma.serviceType.upsert({
+    where: { id: "svc-medical-checkup" },
+    update: {},
+    create: {
+      id: "svc-medical-checkup",
+      name: "Medical Check-up",
+      duration: 60,
+      description: "Pemeriksaan kesehatan menyeluruh dengan laporan hasil.",
+      color: "#8B5CF6",
+      userId: drBudi.id,
     },
-    {
-      name: "Imunisasi Bayi & Anak",
+  });
+
+  console.log(`✅ Dr. Budi services: ${konsultasiUmum.name}, ${medicalCheckup.name}`);
+
+  // Bidan Sari's services
+  const pemeriksaanKehamilan = await prisma.serviceType.upsert({
+    where: { id: "svc-kehamilan" },
+    update: {},
+    create: {
+      id: "svc-kehamilan",
+      name: "Pemeriksaan Kehamilan",
+      duration: 30,
+      description: "Pemeriksaan rutin kehamilan (ANC) termasuk USG dasar.",
+      color: "#EC4899",
+      userId: bidanSari.id,
+    },
+  });
+
+  const imunisasi = await prisma.serviceType.upsert({
+    where: { id: "svc-imunisasi" },
+    update: {},
+    create: {
+      id: "svc-imunisasi",
+      name: "Imunisasi Anak",
       duration: 15,
-      description:
-        "Pemberian vaksinasi sesuai jadwal imunisasi nasional (BCG, DPT, Polio, Campak, dll).",
-      color: "#3B82F6", // Blue
+      description: "Imunisasi dasar dan lanjutan untuk bayi dan balita.",
+      color: "#10B981",
+      userId: bidanSari.id,
     },
-    {
-      name: "Konsultasi KB",
-      duration: 20,
-      description:
-        "Konsultasi dan pemasangan alat kontrasepsi (Pil, Suntik, Implan, IUD).",
-      color: "#10B981", // Green
+  });
+
+  const konsultasiLaktasi = await prisma.serviceType.upsert({
+    where: { id: "svc-laktasi" },
+    update: {},
+    create: {
+      id: "svc-laktasi",
+      name: "Konsultasi Laktasi",
+      duration: 45,
+      description: "Konsultasi menyusui dan manajemen ASI.",
+      color: "#F59E0B",
+      userId: bidanSari.id,
     },
-    {
-      name: "Pemeriksaan Nifas",
-      duration: 30,
-      description:
-        "Pemeriksaan pasca persalinan meliputi involusi uterus, luka perineum, dan laktasi.",
-      color: "#F59E0B", // Amber
-    },
-    {
-      name: "Tindakan Persalinan Normal",
-      duration: 120,
-      description:
-        "Pertolongan persalinan normal di klinik. Slot waktu akan diblokir selama 2 jam.",
-      color: "#EF4444", // Red
-    },
-  ];
+  });
 
-  for (const service of services) {
-    await prisma.serviceType.upsert({
-      where: {
-        id: `seed-service-${service.name.toLowerCase().replace(/\s+/g, "-").slice(0, 20)}`,
-      },
-      update: {},
-      create: {
-        id: `seed-service-${service.name.toLowerCase().replace(/\s+/g, "-").slice(0, 20)}`,
-        name: service.name,
-        duration: service.duration,
-        description: service.description,
-        color: service.color,
-        isActive: true,
-        userId: bidanSari.id,
-      },
-    });
-  }
-
-  console.log(`✅ ${services.length} jenis layanan dibuat`);
-
-  // ============================================================
-  // 3. Buat Jadwal Operasional Mingguan (Schedule)
-  // ============================================================
-  // Senin-Jumat: 08:00-12:00 (Pagi) & 13:00-16:00 (Sore)
-  // Sabtu: 08:00-12:00 (Pagi saja)
-  // Minggu: Libur
-  const dayNames = [
-    "Minggu",
-    "Senin",
-    "Selasa",
-    "Rabu",
-    "Kamis",
-    "Jumat",
-    "Sabtu",
-  ];
-
-  const schedules: { dayOfWeek: number; startTime: string; endTime: string }[] =
-    [];
-
-  // Senin-Jumat (1-5): Pagi & Sore
-  for (let day = 1; day <= 5; day++) {
-    schedules.push(
-      { dayOfWeek: day, startTime: "08:00", endTime: "12:00" },
-      { dayOfWeek: day, startTime: "13:00", endTime: "16:00" }
-    );
-  }
-
-  // Sabtu (6): Pagi saja
-  schedules.push({ dayOfWeek: 6, startTime: "08:00", endTime: "12:00" });
-
-  for (const schedule of schedules) {
-    await prisma.schedule.upsert({
-      where: {
-        userId_dayOfWeek_startTime: {
-          userId: bidanSari.id,
-          dayOfWeek: schedule.dayOfWeek,
-          startTime: schedule.startTime,
-        },
-      },
-      update: {},
-      create: {
-        dayOfWeek: schedule.dayOfWeek,
-        startTime: schedule.startTime,
-        endTime: schedule.endTime,
-        isActive: true,
-        userId: bidanSari.id,
-      },
-    });
-  }
-
-  console.log(`✅ ${schedules.length} jadwal sesi dibuat:`);
-  for (const s of schedules) {
-    console.log(
-      `   ${dayNames[s.dayOfWeek]}: ${s.startTime} - ${s.endTime}`
-    );
-  }
-
-  // ============================================================
-  // 4. Buat DateOverride contoh (Libur Nasional)
-  // ============================================================
-  const overrides = [
-    {
-      date: new Date("2026-03-28"), // Sabtu — contoh libur khusus
-      isBlocked: true,
-      reason: "Isra Mi'raj Nabi Muhammad SAW",
-    },
-    {
-      date: new Date("2026-04-03"), // Jumat — Wafat Isa Al-Masih
-      isBlocked: true,
-      reason: "Wafat Isa Al-Masih",
-    },
-  ];
-
-  for (const override of overrides) {
-    await prisma.dateOverride.upsert({
-      where: {
-        userId_date: {
-          userId: bidanSari.id,
-          date: override.date,
-        },
-      },
-      update: {},
-      create: {
-        date: override.date,
-        isBlocked: override.isBlocked,
-        reason: override.reason,
-        userId: bidanSari.id,
-      },
-    });
-  }
-
-  console.log(`\n✅ ${overrides.length} tanggal libur dibuat:`);
-  for (const o of overrides) {
-    console.log(`   ${o.date.toISOString().slice(0, 10)}: ${o.reason}`);
-  }
-
-  // ============================================================
-  // 5. Buat Booking contoh
-  // ============================================================
-  // Buat booking untuk hari Senin depan sebagai demo
-  const now = new Date();
-  const nextMonday = new Date(now);
-  nextMonday.setDate(now.getDate() + ((1 + 7 - now.getDay()) % 7 || 7));
-
-  const sampleBookings = [
-    {
-      patientName: "Ibu Ratna Dewi",
-      patientPhone: "081234567001",
-      patientNotes: "Kehamilan trimester 3, kontrol rutin bulanan.",
-      startHour: 8,
-      startMinute: 0,
-      serviceIndex: 0, // ANC 30 menit
-    },
-    {
-      patientName: "Ibu Fitri Handayani",
-      patientPhone: "081234567002",
-      patientNotes: "Imunisasi DPT anak usia 4 bulan.",
-      startHour: 8,
-      startMinute: 30,
-      serviceIndex: 1, // Imunisasi 15 menit
-    },
-    {
-      patientName: "Ibu Siti Aminah",
-      patientPhone: "081234567003",
-      patientNotes: "Konsultasi ganti metode KB dari suntik ke implan.",
-      startHour: 9,
-      startMinute: 0,
-      serviceIndex: 2, // Konsultasi KB 20 menit
-    },
-  ];
-
-  const serviceIds = services.map(
-    (s) =>
-      `seed-service-${s.name.toLowerCase().replace(/\s+/g, "-").slice(0, 20)}`
+  console.log(
+    `✅ Bidan Sari services: ${pemeriksaanKehamilan.name}, ${imunisasi.name}, ${konsultasiLaktasi.name}`
   );
 
-  for (const booking of sampleBookings) {
-    const bookingDate = new Date(nextMonday);
-    bookingDate.setHours(0, 0, 0, 0);
+  // ============================================================
+  // 4. Schedules — Different per Staff
+  // ============================================================
 
-    const startTime = new Date(nextMonday);
-    startTime.setHours(booking.startHour, booking.startMinute, 0, 0);
+  // Dr. Budi: Senin-Jumat, 08:00-12:00 (Pagi) & 14:00-17:00 (Sore)
+  const budiSchedules = [
+    { dayOfWeek: 1, startTime: "08:00", endTime: "12:00" },
+    { dayOfWeek: 1, startTime: "14:00", endTime: "17:00" },
+    { dayOfWeek: 2, startTime: "08:00", endTime: "12:00" },
+    { dayOfWeek: 2, startTime: "14:00", endTime: "17:00" },
+    { dayOfWeek: 3, startTime: "08:00", endTime: "12:00" },
+    { dayOfWeek: 3, startTime: "14:00", endTime: "17:00" },
+    { dayOfWeek: 4, startTime: "08:00", endTime: "12:00" },
+    { dayOfWeek: 4, startTime: "14:00", endTime: "17:00" },
+    { dayOfWeek: 5, startTime: "08:00", endTime: "12:00" },
+    { dayOfWeek: 5, startTime: "14:00", endTime: "17:00" },
+  ];
 
-    const serviceDuration = services[booking.serviceIndex].duration;
-    const endTime = new Date(startTime);
-    endTime.setMinutes(endTime.getMinutes() + serviceDuration);
-
-    await prisma.booking.upsert({
-      where: {
-        userId_startTime: {
-          userId: bidanSari.id,
-          startTime: startTime,
-        },
-      },
-      update: {},
-      create: {
-        date: bookingDate,
-        startTime: startTime,
-        endTime: endTime,
-        patientName: booking.patientName,
-        patientPhone: booking.patientPhone,
-        patientNotes: booking.patientNotes,
-        status: BookingStatus.CONFIRMED,
-        userId: bidanSari.id,
-        serviceTypeId: serviceIds[booking.serviceIndex],
-      },
+  // Clear existing schedules for Dr. Budi
+  await prisma.schedule.deleteMany({ where: { userId: drBudi.id } });
+  for (const s of budiSchedules) {
+    await prisma.schedule.create({
+      data: { userId: drBudi.id, ...s },
     });
   }
+  console.log(`✅ Dr. Budi schedules: Senin-Jumat (Pagi + Sore)`);
 
-  console.log(`\n✅ ${sampleBookings.length} booking contoh dibuat untuk Senin ${nextMonday.toISOString().slice(0, 10)}:`);
-  for (const b of sampleBookings) {
-    const hour = b.startHour.toString().padStart(2, "0");
-    const minute = b.startMinute.toString().padStart(2, "0");
-    console.log(
-      `   ${hour}:${minute} — ${b.patientName} (${services[b.serviceIndex].name})`
-    );
+  // Bidan Sari: Senin-Sabtu, 09:00-15:00
+  const sariSchedules = [
+    { dayOfWeek: 1, startTime: "09:00", endTime: "15:00" },
+    { dayOfWeek: 2, startTime: "09:00", endTime: "15:00" },
+    { dayOfWeek: 3, startTime: "09:00", endTime: "15:00" },
+    { dayOfWeek: 4, startTime: "09:00", endTime: "15:00" },
+    { dayOfWeek: 5, startTime: "09:00", endTime: "15:00" },
+    { dayOfWeek: 6, startTime: "09:00", endTime: "13:00" }, // Sabtu setengah hari
+  ];
+
+  await prisma.schedule.deleteMany({ where: { userId: bidanSari.id } });
+  for (const s of sariSchedules) {
+    await prisma.schedule.create({
+      data: { userId: bidanSari.id, ...s },
+    });
   }
+  console.log(`✅ Bidan Sari schedules: Senin-Sabtu (09:00-15:00/13:00)`);
 
-  console.log("\n🎉 Seeding selesai! Database siap digunakan.");
-  console.log("━".repeat(50));
-  console.log("📧 Login admin: bidan.sari@kliniku.com");
-  console.log("🔑 Password:    REDACTED_SEED_PASSWORD");
-  console.log("━".repeat(50));
+  // ============================================================
+  // 5. Sample Bookings
+  // ============================================================
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  // Dr. Budi — 2 bookings for tomorrow
+  const budiBooking1Start = new Date(tomorrow);
+  budiBooking1Start.setHours(9, 0, 0, 0);
+  const budiBooking1End = new Date(tomorrow);
+  budiBooking1End.setHours(9, 30, 0, 0);
+
+  await prisma.booking.upsert({
+    where: { id: "bk-budi-001" },
+    update: {},
+    create: {
+      id: "bk-budi-001",
+      userId: drBudi.id,
+      serviceTypeId: konsultasiUmum.id,
+      date: tomorrow,
+      startTime: budiBooking1Start,
+      endTime: budiBooking1End,
+      patientName: "Ahmad Fauzi",
+      patientPhone: "081234567890",
+      patientNotes: "Keluhan batuk berkepanjangan",
+      status: "CONFIRMED",
+    },
+  });
+
+  const budiBooking2Start = new Date(tomorrow);
+  budiBooking2Start.setHours(10, 0, 0, 0);
+  const budiBooking2End = new Date(tomorrow);
+  budiBooking2End.setHours(11, 0, 0, 0);
+
+  await prisma.booking.upsert({
+    where: { id: "bk-budi-002" },
+    update: {},
+    create: {
+      id: "bk-budi-002",
+      userId: drBudi.id,
+      serviceTypeId: medicalCheckup.id,
+      date: tomorrow,
+      startTime: budiBooking2Start,
+      endTime: budiBooking2End,
+      patientName: "Rina Handayani",
+      patientPhone: "082345678901",
+      status: "PENDING",
+    },
+  });
+
+  console.log(`✅ Dr. Budi bookings: 2 (1 CONFIRMED, 1 PENDING)`);
+
+  // Bidan Sari — 2 bookings for tomorrow
+  const sariBooking1Start = new Date(tomorrow);
+  sariBooking1Start.setHours(9, 0, 0, 0);
+  const sariBooking1End = new Date(tomorrow);
+  sariBooking1End.setHours(9, 30, 0, 0);
+
+  await prisma.booking.upsert({
+    where: { id: "bk-sari-001" },
+    update: {},
+    create: {
+      id: "bk-sari-001",
+      userId: bidanSari.id,
+      serviceTypeId: pemeriksaanKehamilan.id,
+      date: tomorrow,
+      startTime: sariBooking1Start,
+      endTime: sariBooking1End,
+      patientName: "Dewi Lestari",
+      patientPhone: "083456789012",
+      patientNotes: "Kehamilan 7 bulan, pemeriksaan rutin",
+      status: "CONFIRMED",
+    },
+  });
+
+  const sariBooking2Start = new Date(tomorrow);
+  sariBooking2Start.setHours(10, 0, 0, 0);
+  const sariBooking2End = new Date(tomorrow);
+  sariBooking2End.setHours(10, 15, 0, 0);
+
+  await prisma.booking.upsert({
+    where: { id: "bk-sari-002" },
+    update: {},
+    create: {
+      id: "bk-sari-002",
+      userId: bidanSari.id,
+      serviceTypeId: imunisasi.id,
+      date: tomorrow,
+      startTime: sariBooking2Start,
+      endTime: sariBooking2End,
+      patientName: "Putri Rahayu",
+      patientPhone: "084567890123",
+      patientNotes: "Imunisasi DPT lanjutan untuk bayi usia 6 bulan",
+      status: "PENDING",
+    },
+  });
+
+  console.log(`✅ Bidan Sari bookings: 2 (1 CONFIRMED, 1 PENDING)`);
+
+  // ============================================================
+  // Done
+  // ============================================================
+  console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log("🎉 Seed complete! Login credentials:");
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log("OWNER:  admin@kliniku.com       / REDACTED_SEED_PASSWORD");
+  console.log("STAFF:  dr.budi@kliniku.com     / REDACTED_SEED_PASSWORD");
+  console.log("STAFF:  bidan.sari@kliniku.com  / REDACTED_SEED_PASSWORD");
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 }
 
 main()
-  .then(async () => {
-    await prisma.$disconnect();
-  })
-  .catch(async (e) => {
-    console.error("❌ Seeding gagal:", e);
-    await prisma.$disconnect();
+  .catch((e) => {
+    console.error("❌ Seed error:", e);
     process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
   });
