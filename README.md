@@ -1,12 +1,8 @@
-<p align="center">
-  <img src="public/icons/icon-192x192.png" alt="NexCal" width="80" />
-</p>
-
-<h1 align="center">NexCal</h1>
+<h1 align="center">🗓️ NexCal</h1>
 
 <p align="center">
   <strong>Free &amp; Open-Source Appointment Booking System</strong><br/>
-  Calendly alternative — self-hosted, privacy-first, built for Indonesian healthcare practitioners.
+  A self-hosted Calendly alternative — privacy-first, Docker-ready, works for any appointment-based business.
 </p>
 
 <p align="center">
@@ -23,21 +19,21 @@
 
 ## ✨ What is NexCal?
 
-**NexCal** is a modern, self-hosted appointment scheduling system designed for independent healthcare practitioners — midwives, dentists, GPs, or anyone who needs a clean booking page and an admin dashboard to manage appointments.
+**NexCal** is a modern, self-hosted appointment scheduling system for **any business that takes appointments** — barbershops, beauty salons, consulting firms, photography studios, auto repair shops, clinics, tutors, and more.
 
-Think of it as a **free Calendly** that you own, control, and can customize. No subscription fees, no vendor lock-in.
+Think of it as a **free Calendly** that you own, control, and can customize. No subscription fees, no vendor lock-in. Deploy with a single `docker compose up` command and you're live.
 
 ---
 
 ## 🎯 Key Features
 
-### For Patients (Public Booking Page)
-- 🏥 **Service Selection** — Browse available services with descriptions and durations
-- 📅 **Smart Calendar** — Only shows open dates; national holidays auto-blocked
-- ⏰ **Real-time Slot Picker** — Slots generated live from provider schedule
-- 📝 **Simple Booking Form** — Name, WhatsApp number, and optional notes
+### For Customers (Public Booking Page)
+- 🏷️ **Service Selection** — Browse available services with descriptions and durations
+- 📅 **Smart Calendar** — Only shows open dates; blocked dates auto-handled
+- ⏰ **Real-time Slot Picker** — Slots generated live from your schedule
+- 📝 **Simple Booking Form** — Name, phone number, and optional notes
 
-### For Practitioners (Admin Dashboard)
+### For Business Owners (Admin Dashboard)
 - 📊 **Live Dashboard** — Pending count, today's schedule, weekly completions
 - 📋 **Booking Management** — Filter, search, and manage all reservations
 - ✅ **Status Actions** — Confirm, Complete, Cancel (with reason), No-Show
@@ -56,7 +52,7 @@ NexCal's most important feature: **zero possibility of double bookings**, guaran
 | **Layer 2** | Real-time slot availability re-check before insert | Server Action |
 | **Layer 3** | PostgreSQL unique constraint on `(userId, startTime)` | Database |
 
-Even if two patients submit at the exact same millisecond, the database constraint catches it. **No conflicts, guaranteed.**
+Even if two customers submit at the exact same millisecond, the database constraint catches it. **No conflicts, guaranteed.**
 
 ---
 
@@ -84,7 +80,7 @@ Even if two patients submit at the exact same millisecond, the database constrai
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-username/nexcal.git
+git clone https://github.com/ribato22/nexcal.git
 cd nexcal
 
 # 2. Create environment file
@@ -192,14 +188,14 @@ Contributions, issues, and feature requests are welcome!
 ## 💡 Roadmap
 
 - [ ] WhatsApp booking reminders (via API)
-- [ ] Multi-provider support (clinic with multiple practitioners)
-- [ ] Patient appointment history portal
+- [ ] Multi-provider support (businesses with multiple staff)
+- [ ] Customer appointment history portal
 - [ ] Google Calendar sync
 - [ ] Analytics dashboard with charts
 
 ---
 
 <p align="center">
-  Made with ❤️ for Indonesian healthcare practitioners<br/>
+  Made with ❤️ in Indonesia<br/>
   <strong>NexCal</strong> — Your schedule, your rules.
 </p>
