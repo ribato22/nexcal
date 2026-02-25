@@ -1,14 +1,16 @@
 import { getBookings } from "@/actions/admin-bookings";
 import { BookingFilters, BookingTable } from "@/components/admin/booking-table";
+import { auth } from "@/lib/auth";
 
 interface PageProps {
   searchParams: Promise<{ status?: string; search?: string }>;
 }
 
 export default async function BookingsPage({ searchParams }: PageProps) {
-  const params = await searchParams;
+  const [params, session] = await Promise.all([searchParams, auth()]);
   const status = params.status || "ALL";
   const search = params.search || "";
+  const isOwner = session?.user?.role === "OWNER";
 
   const bookings = await getBookings({
     status: status !== "ALL" ? status : undefined,
@@ -34,7 +36,7 @@ export default async function BookingsPage({ searchParams }: PageProps) {
       </div>
 
       {/* Table */}
-      <BookingTable bookings={bookings} />
+      <BookingTable bookings={bookings} isOwner={isOwner} />
     </div>
   );
 }

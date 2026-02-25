@@ -5,6 +5,26 @@ import { getAvailableSlots, type TimeSlot, type ScheduleSession, type DateOverri
 import { startOfDay } from "date-fns";
 
 /**
+ * Mengambil daftar provider (staf/praktisi) untuk halaman publik booking.
+ * Hanya menampilkan user yang memiliki layanan aktif.
+ */
+export async function getProviders(): Promise<
+  Array<{ id: string; name: string; clinicName: string | null }>
+> {
+  return prisma.user.findMany({
+    where: {
+      serviceTypes: { some: { isActive: true } },
+    },
+    select: {
+      id: true,
+      name: true,
+      clinicName: true,
+    },
+    orderBy: { name: "asc" },
+  });
+}
+
+/**
  * Mengambil slot yang tersedia untuk tanggal dan layanan tertentu.
  * Dipanggil dari halaman publik booking (tanpa auth).
  */
@@ -77,11 +97,14 @@ export async function getAvailableSlotsAction(
 }
 
 /**
- * Mengambil daftar layanan aktif (untuk halaman publik).
+ * Mengambil daftar layanan aktif milik provider tertentu (untuk halaman publik).
  */
-export async function getActiveServices() {
+export async function getActiveServices(providerId?: string) {
   return prisma.serviceType.findMany({
-    where: { isActive: true },
+    where: {
+      isActive: true,
+      ...(providerId ? { userId: providerId } : {}),
+    },
     select: {
       id: true,
       name: true,
@@ -89,6 +112,7 @@ export async function getActiveServices() {
       description: true,
       color: true,
       userId: true,
+      user: { select: { name: true } },
     },
     orderBy: { name: "asc" },
   });

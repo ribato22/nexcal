@@ -245,9 +245,12 @@ interface BookingRow {
     duration: number;
     color: string | null;
   };
+  user?: {
+    name: string;
+  };
 }
 
-export function BookingTable({ bookings }: { bookings: BookingRow[] }) {
+export function BookingTable({ bookings, isOwner = false }: { bookings: BookingRow[]; isOwner?: boolean }) {
   if (bookings.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 py-16">
@@ -274,6 +277,11 @@ export function BookingTable({ bookings }: { bookings: BookingRow[] }) {
             <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
               Layanan
             </th>
+            {isOwner && (
+              <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Staf
+              </th>
+            )}
             <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
               Tanggal & Waktu
             </th>
@@ -309,6 +317,16 @@ export function BookingTable({ bookings }: { bookings: BookingRow[] }) {
                   </span>
                 </div>
               </td>
+              {isOwner && (
+                <td className="px-5 py-4">
+                  <span className="inline-flex items-center gap-1.5 text-sm text-slate-600">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">
+                      {(b.user?.name || "?").charAt(0)}
+                    </span>
+                    {b.user?.name || "-"}
+                  </span>
+                </td>
+              )}
               <td className="px-5 py-4">
                 <p className="text-sm text-slate-900">
                   {format(new Date(b.date), "EEE, d MMM yyyy", { locale: idLocale })}
@@ -358,6 +376,12 @@ export function BookingTable({ bookings }: { bookings: BookingRow[] }) {
                 {b.serviceType.name}
               </div>
               <span className="text-slate-300">•</span>
+              {isOwner && b.user?.name && (
+                <>
+                  <span className="text-blue-600 font-medium">{b.user.name}</span>
+                  <span className="text-slate-300">•</span>
+                </>
+              )}
               <span>
                 {format(new Date(b.date), "d MMM", { locale: idLocale })}, {format(new Date(b.startTime), "HH:mm")}
               </span>

@@ -1,8 +1,8 @@
-import { getActiveServices } from "@/actions/slots";
+import { getProviders } from "@/actions/slots";
 import { BookingWizard } from "@/components/booking/booking-wizard";
 
 export default async function BookingPage() {
-  const services = await getActiveServices();
+  const providers = await getProviders();
 
-  return <BookingWizard services={services} />;
+  return <BookingWizard providers={providers} />;
 }

@@ -1,12 +1,34 @@
 import { prisma } from "@/lib/prisma";
 import { getDataScope } from "@/lib/rbac";
+import { auth } from "@/lib/auth";
+
+interface ServiceWithProvider {
+  id: string;
+  name: string;
+  duration: number;
+  description: string | null;
+  isActive: boolean;
+  color: string | null;
+  user?: { name: string };
+}
 
 export default async function ServicesPage() {
-  const scope = await getDataScope();
+  const [scope, session] = await Promise.all([getDataScope(), auth()]);
   if (!scope) return null;
 
-  const services = await prisma.serviceType.findMany({
+  const isOwner = session?.user?.role === "OWNER";
+
+  const services: ServiceWithProvider[] = await prisma.serviceType.findMany({
     where: scope.userFilter,
+    select: {
+      id: true,
+      name: true,
+      duration: true,
+      description: true,
+      isActive: true,
+      color: true,
+      ...(isOwner ? { user: { select: { name: true } } } : {}),
+    },
     orderBy: { name: "asc" },
   });
 
@@ -22,7 +44,6 @@ export default async function ServicesPage() {
             Kelola layanan yang tersedia beserta durasi konsultasi/tindakan.
           </p>
         </div>
-        {/* CTA — CRUD write akan di Sprint 1.5 / Sprint 2 */}
         <button
           disabled
           className="flex items-center gap-2 rounded-xl bg-linear-to-r from-blue-600 to-cyan-500 px-4 py-2.5 text-sm font-semibold text-white opacity-50 shadow-lg shadow-blue-500/20 cursor-not-allowed"
@@ -48,8 +69,8 @@ export default async function ServicesPage() {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {services.map((service: { id: string; name: string; duration: number; description: string | null; isActive: boolean; color: string | null }) => (
-            <ServiceCard key={service.id} service={service} />
+          {services.map((service) => (
+            <ServiceCard key={service.id} service={service} isOwner={isOwner} />
           ))}
         </div>
       )}
@@ -59,15 +80,10 @@ export default async function ServicesPage() {
 
 function ServiceCard({
   service,
+  isOwner,
 }: {
-  service: {
-    id: string;
-    name: string;
-    duration: number;
-    description: string | null;
-    isActive: boolean;
-    color: string | null;
-  };
+  service: ServiceWithProvider;
+  isOwner: boolean;
 }) {
   const durasiLabel = service.duration >= 60
     ? `${Math.floor(service.duration / 60)} jam${service.duration % 60 > 0 ? ` ${service.duration % 60} menit` : ""}`
@@ -114,6 +130,16 @@ function ServiceCard({
             >
               {service.isActive ? "Aktif" : "Nonaktif"}
             </span>
+
+            {/* Provider badge (OWNER only) */}
+            {isOwner && service.user?.name && (
+              <span className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/30 dark:text-blue-400">
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                </svg>
+                {service.user.name}
+              </span>
+            )}
           </div>
         </div>
 
