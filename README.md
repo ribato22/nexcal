@@ -117,13 +117,13 @@ The first launch will automatically:
 
 ### Default Logins (Multi-Provider Demo)
 
-| Role | Email | Password |
-|------|-------|----------|
-| 👑 OWNER | `admin@kliniku.com` | `REDACTED_SEED_PASSWORD` |
-| 👤 STAFF | `dr.budi@kliniku.com` | `REDACTED_SEED_PASSWORD` |
-| 👤 STAFF | `bidan.sari@kliniku.com` | `REDACTED_SEED_PASSWORD` |
+| Role | Email |
+|------|-------|
+| 👑 OWNER | `admin@kliniku.com` |
+| 👤 STAFF | `dr.budi@kliniku.com` |
+| 👤 STAFF | `bidan.sari@kliniku.com` |
 
-> ⚠️ **Change the default passwords immediately after your first login!**
+> 🔑 **Default password** is defined in [`prisma/seed.ts`](prisma/seed.ts). Change all passwords immediately after deployment!
 
 ### Local Development
 
