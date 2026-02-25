@@ -6,6 +6,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, format } from "date-fns";
 import { notifyBookingConfirmed, notifyBookingCancelled } from "@/lib/whatsapp";
+import { pushBookingToCalendar } from "@/lib/gcal";
 
 // ============================================================
 // Tipe & Interface
@@ -162,6 +163,17 @@ export async function updateBookingStatus(
 
     if (status === "CONFIRMED") {
       notifyBookingConfirmed(notifInfo);
+      // Push to Google Calendar (fire-and-forget)
+      pushBookingToCalendar({
+        userId: session.user.id,
+        patientName: booking.patientName,
+        patientPhone: booking.patientPhone,
+        serviceName: booking.serviceType.name,
+        startTime: booking.startTime,
+        endTime: booking.endTime,
+        notes: booking.patientNotes,
+        clinicName: booking.user.clinicName,
+      });
     } else if (status === "CANCELLED") {
       notifyBookingCancelled(notifInfo, cancelReason);
     }

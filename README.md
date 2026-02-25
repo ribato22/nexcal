@@ -42,6 +42,7 @@ Think of it as a **free Calendly** that you own, control, and can customize. No 
 - 🏷️ **Service Management** — CRUD services with custom colors and durations
 - 🔒 **Secure Auth** — Cookie-based authentication with bcrypt password hashing
 - 📢 **WhatsApp Reminders** — Auto-notify customers via [MultiWA](https://github.com/ribato22/MultiWA) (optional)
+- 📆 **Google Calendar Sync** — Confirmed bookings auto-pushed to admin's Google Calendar (optional)
 
 ### 🛡️ 3-Layer Anti Double-Booking System
 
@@ -166,6 +167,8 @@ nexcal/
 | `MULTIWA_API_URL` | ❌ | MultiWA API base URL (optional, enables WhatsApp notifications) |
 | `MULTIWA_API_KEY` | ❌ | MultiWA API key |
 | `MULTIWA_SESSION_ID` | ❌ | MultiWA session ID |
+| `GOOGLE_CLIENT_ID` | ❌ | Google OAuth client ID (optional, enables Calendar sync) |
+| `GOOGLE_CLIENT_SECRET` | ❌ | Google OAuth client secret |
 
 See [`.env.example`](.env.example) for the full template.
 
@@ -192,9 +195,9 @@ Contributions, issues, and feature requests are welcome!
 ## 💡 Roadmap
 
 - [x] WhatsApp booking reminders (via [MultiWA](https://github.com/ribato22/MultiWA))
+- [x] Google Calendar sync (1-way push on confirm)
 - [ ] Multi-provider support (businesses with multiple staff)
 - [ ] Customer appointment history portal
-- [ ] Google Calendar sync
 - [ ] Analytics dashboard with charts
 
 ---
