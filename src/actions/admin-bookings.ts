@@ -28,6 +28,8 @@ export interface BookingWithService {
   patientNotes: string | null;
   cancelReason: string | null;
   createdAt: Date;
+  paymentStatus: string;
+  totalPrice: number;
   serviceType: {
     name: string;
     duration: number;
@@ -79,6 +81,8 @@ export async function getBookings(
       patientNotes: true,
       cancelReason: true,
       createdAt: true,
+      paymentStatus: true,
+      totalPrice: true,
       serviceType: {
         select: { name: true, duration: true, color: true },
       },

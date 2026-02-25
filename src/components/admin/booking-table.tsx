@@ -43,6 +43,33 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+const paymentStatusMap: Record<string, { label: string; color: string }> = {
+  UNPAID: { label: "Belum Bayar", color: "border-amber-200 bg-amber-50 text-amber-700" },
+  PAID:   { label: "Lunas", color: "border-green-200 bg-green-50 text-green-700" },
+  REFUNDED: { label: "Refund", color: "border-purple-200 bg-purple-50 text-purple-700" },
+  FAILED: { label: "Gagal", color: "border-red-200 bg-red-50 text-red-700" },
+};
+
+function PaymentBadge({ status, totalPrice }: { status: string; totalPrice: number }) {
+  if (totalPrice === 0) {
+    return (
+      <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-500">
+        Gratis
+      </span>
+    );
+  }
+  const info = paymentStatusMap[status] || paymentStatusMap.UNPAID;
+  const formattedPrice = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(totalPrice);
+  return (
+    <div className="flex flex-col gap-1">
+      <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${info.color}`}>
+        {info.label}
+      </span>
+      <span className="text-[10px] text-slate-400">{formattedPrice}</span>
+    </div>
+  );
+}
+
 // ============================================================
 // Action Menu (per row)
 // ============================================================
@@ -248,6 +275,8 @@ interface BookingRow {
   user?: {
     name: string;
   };
+  paymentStatus: string;
+  totalPrice: number;
 }
 
 export function BookingTable({ bookings, isOwner = false }: { bookings: BookingRow[]; isOwner?: boolean }) {
@@ -287,6 +316,9 @@ export function BookingTable({ bookings, isOwner = false }: { bookings: BookingR
             </th>
             <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
               Status
+            </th>
+            <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Bayar
             </th>
             <th className="px-5 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
               Aksi
@@ -342,6 +374,9 @@ export function BookingTable({ bookings, isOwner = false }: { bookings: BookingR
                     {b.cancelReason}
                   </p>
                 )}
+              </td>
+              <td className="px-5 py-4">
+                <PaymentBadge status={b.paymentStatus} totalPrice={b.totalPrice} />
               </td>
               <td className="px-5 py-4 text-right">
                 <ActionMenu bookingId={b.id} currentStatus={b.status} />

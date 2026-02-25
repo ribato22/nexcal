@@ -111,6 +111,8 @@ export async function getActiveServices(providerId?: string) {
       id: true,
       name: true,
       duration: true,
+      price: true,
+      dpPercentage: true,
       description: true,
       color: true,
       userId: true,
