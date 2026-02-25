@@ -77,6 +77,7 @@ model ServiceType {
   id          String  @id @default(cuid())
   name        String
   duration    Int     // Durasi dalam menit (15, 30, 45, 60)
+  bufferTime  Int     @default(0) @map("buffer_time") // Jeda setelah layanan (menit)
   description String?
   isActive    Boolean @default(true) @map("is_active")
   color       String? // Warna hex untuk kalender UI

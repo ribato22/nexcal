@@ -35,7 +35,7 @@ export async function getAvailableSlotsAction(
   try {
     const service = await prisma.serviceType.findUnique({
       where: { id: serviceTypeId },
-      select: { duration: true, userId: true },
+      select: { duration: true, bufferTime: true, userId: true },
     });
 
     if (!service) {
@@ -60,7 +60,7 @@ export async function getAvailableSlotsAction(
           date: startOfDay(targetDate),
           status: { in: ["PENDING", "CONFIRMED"] },
         },
-        select: { startTime: true, endTime: true },
+        select: { startTime: true, endTime: true, serviceType: { select: { bufferTime: true } } },
       }),
     ]);
 
@@ -77,9 +77,10 @@ export async function getAvailableSlotsAction(
       endTime: o.endTime,
     }));
 
-    const existingBookings: ExistingBooking[] = bookings.map((b: { startTime: Date; endTime: Date }) => ({
+    const existingBookings: ExistingBooking[] = bookings.map((b: { startTime: Date; endTime: Date; serviceType: { bufferTime: number } }) => ({
       startTime: b.startTime,
       endTime: b.endTime,
+      bufferTime: b.serviceType.bufferTime,
     }));
 
     const slots = getAvailableSlots(
@@ -87,7 +88,8 @@ export async function getAvailableSlotsAction(
       scheduleSessions,
       dateOverrides,
       existingBookings,
-      service.duration
+      service.duration,
+      service.bufferTime
     );
 
     return { slots, error: null };
