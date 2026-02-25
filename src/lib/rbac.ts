@@ -65,7 +65,7 @@ export async function getDataScope(): Promise<DataScope | null> {
     select: { id: true },
   });
 
-  const memberIds = orgMembers.map((m) => m.id);
+  const memberIds = orgMembers.map((m: { id: string }) => m.id);
 
   return {
     userFilter: { userId: { in: memberIds } },
