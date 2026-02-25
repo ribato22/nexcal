@@ -2,9 +2,10 @@
 
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import { getAvailableSlots, type ScheduleSession, type DateOverrideData, type ExistingBooking } from "@/lib/slots";
+import { getAvailableSlots, ScheduleSession, DateOverrideData, ExistingBooking } from "@/lib/slots";
 import { parse, startOfDay, addMinutes, format } from "date-fns";
 import { notifyBookingReceived } from "@/lib/whatsapp";
+import { getPaymentProvider, isPaymentEnabled, calculatePaymentAmount } from "@/lib/payment/core";
 
 
 // ============================================================
@@ -44,6 +45,8 @@ export interface BookingResult {
     date: string;
     time: string;
     patientName: string;
+    paymentUrl?: string; // URL redirect ke gateway pembayaran
+    totalPrice?: number;
   } | null;
 }
 
@@ -77,7 +80,7 @@ export async function createBookingAction(
     // Ambil data layanan
     const service = await prisma.serviceType.findUnique({
       where: { id: serviceTypeId },
-      select: { duration: true, bufferTime: true, userId: true, name: true },
+      select: { duration: true, bufferTime: true, userId: true, name: true, price: true, dpPercentage: true },
     });
 
     if (!service) {
@@ -161,6 +164,12 @@ export async function createBookingAction(
     // LAPIS 3: Insert dengan DB constraint catch
     // ============================================
     try {
+      // Hitung harga & DP
+      const isPaid = service.price > 0;
+      const paymentAmount = isPaid
+        ? calculatePaymentAmount(service.price, service.dpPercentage)
+        : 0;
+
       const booking = await prisma.booking.create({
         data: {
           userId: service.userId,
@@ -172,8 +181,44 @@ export async function createBookingAction(
           patientPhone,
           patientNotes: patientNotes || null,
           status: "PENDING",
+          // Payment fields
+          paymentStatus: isPaid ? "UNPAID" : "PAID", // Gratis = otomatis PAID
+          totalPrice: service.price,
+          dpAmount: paymentAmount,
         },
       });
+
+      // Jika layanan berbayar dan gateway dikonfigurasi → buat transaksi
+      let paymentUrl: string | undefined;
+      if (isPaid && isPaymentEnabled()) {
+        try {
+          const provider = getPaymentProvider();
+          const txResult = await provider.createTransaction({
+            bookingId: booking.id,
+            amount: paymentAmount,
+            customerName: patientName,
+            customerPhone: patientPhone,
+            serviceName: service.name,
+            merchantName: owner?.clinicName || undefined,
+          });
+
+          if (txResult.success && txResult.paymentRefId) {
+            // Update booking dengan data pembayaran
+            await prisma.booking.update({
+              where: { id: booking.id },
+              data: {
+                paymentGateway: provider.name,
+                paymentRefId: txResult.paymentRefId,
+                paymentUrl: txResult.paymentUrl || null,
+              },
+            });
+            paymentUrl = txResult.paymentUrl;
+          }
+        } catch (paymentErr) {
+          // Payment gateway error tidak membatalkan booking
+          console.error("[Payment] Gateway error (booking tetap dibuat):", paymentErr);
+        }
+      }
 
       // Fire-and-forget WhatsApp notification
       notifyBookingReceived({
@@ -195,6 +240,8 @@ export async function createBookingAction(
           date,
           time: startTime,
           patientName,
+          paymentUrl,
+          totalPrice: isPaid ? paymentAmount : undefined,
         },
       };
     } catch (dbError: unknown) {
