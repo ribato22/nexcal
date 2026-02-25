@@ -3,7 +3,8 @@
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { getAvailableSlots, type ScheduleSession, type DateOverrideData, type ExistingBooking } from "@/lib/slots";
-import { parse, startOfDay, addMinutes } from "date-fns";
+import { parse, startOfDay, addMinutes, format } from "date-fns";
+import { notifyBookingReceived } from "@/lib/whatsapp";
 
 
 // ============================================================
@@ -82,6 +83,12 @@ export async function createBookingAction(
     if (!service) {
       return { ...empty, error: "Layanan tidak ditemukan." };
     }
+
+    // Ambil nama klinik/bisnis dari pemilik
+    const owner = await prisma.user.findUnique({
+      where: { id: service.userId },
+      select: { clinicName: true },
+    });
 
     // Hitung waktu mulai dan selesai
     const targetDate = new Date(date);
@@ -164,6 +171,17 @@ export async function createBookingAction(
           patientNotes: patientNotes || null,
           status: "PENDING",
         },
+      });
+
+      // Fire-and-forget WhatsApp notification
+      notifyBookingReceived({
+        patientName,
+        patientPhone,
+        serviceName: service.name,
+        date: refDate,
+        startTime: format(slotStart, "HH:mm"),
+        duration: service.duration,
+        clinicName: owner?.clinicName || undefined,
       });
 
       return {
