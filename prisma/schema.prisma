@@ -23,6 +23,12 @@ model User {
   clinicName     String?  @map("clinic_name")
   clinicAddress  String?  @map("clinic_address")
   phone          String?
+
+  // Google Calendar Integration (OAuth 2.0)
+  googleAccessToken  String?  @map("google_access_token")
+  googleRefreshToken String?  @map("google_refresh_token")
+  googleTokenExpiry  DateTime? @map("google_token_expiry")
+
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
