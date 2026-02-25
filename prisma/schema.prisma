@@ -74,13 +74,15 @@ enum Role {
 // ============================================================
 // Jenis layanan yang ditawarkan, menentukan durasi slot.
 model ServiceType {
-  id          String  @id @default(cuid())
-  name        String
-  duration    Int     // Durasi dalam menit (15, 30, 45, 60)
-  bufferTime  Int     @default(0) @map("buffer_time") // Jeda setelah layanan (menit)
-  description String?
-  isActive    Boolean @default(true) @map("is_active")
-  color       String? // Warna hex untuk kalender UI
+  id            String  @id @default(cuid())
+  name          String
+  duration      Int     // Durasi dalam menit (15, 30, 45, 60)
+  bufferTime    Int     @default(0) @map("buffer_time") // Jeda setelah layanan (menit)
+  price         Int     @default(0) // Harga layanan (Rupiah). 0 = gratis
+  dpPercentage  Int     @default(0) @map("dp_percentage") // Persentase DP (0-100). 0 = bayar penuh
+  description   String?
+  isActive      Boolean @default(true) @map("is_active")
+  color         String? // Warna hex untuk kalender UI
 
   // Relations
   userId   String    @map("user_id")
@@ -144,6 +146,14 @@ model Booking {
   patientPhone    String        @map("patient_phone")
   patientNotes    String?       @map("patient_notes")
 
+  // Payment (Gateway-Agnostic)
+  paymentStatus   PaymentStatus @default(UNPAID) @map("payment_status")
+  totalPrice      Int           @default(0) @map("total_price")       // Jumlah yang harus dibayar (Rupiah)
+  dpAmount        Int           @default(0) @map("dp_amount")         // Jumlah DP (Rupiah)
+  paymentGateway  String?       @map("payment_gateway")              // 'MIDTRANS', 'XENDIT', dll
+  paymentRefId    String?       @map("payment_ref_id")               // Token/Order ID dari gateway
+  paymentUrl      String?       @map("payment_url")                  // Redirect URL pembayaran
+
   // Metadata
   cancelReason    String?       @map("cancel_reason")
   createdAt       DateTime      @default(now()) @map("created_at")
@@ -167,4 +177,11 @@ enum BookingStatus {
   CANCELLED
   COMPLETED
   NO_SHOW
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+  REFUNDED
+  FAILED
 }
