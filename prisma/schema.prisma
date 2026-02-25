@@ -1,0 +1,144 @@
+// prisma/schema.prisma
+// Self-Hosted Booking System — Database Schema
+// Use-case: Praktik Mandiri Bidan / Klinik Faskes
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// MODEL: User (Admin / Provider)
+// ============================================================
+// Representasi tenaga medis atau admin klinik yang mengelola jadwal.
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  hashedPassword String   @map("hashed_password")
+  name           String
+  role           Role     @default(PROVIDER)
+  clinicName     String?  @map("clinic_name")
+  clinicAddress  String?  @map("clinic_address")
+  phone          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  schedules     Schedule[]
+  dateOverrides DateOverride[]
+  bookings      Booking[]
+  serviceTypes  ServiceType[]
+
+  @@map("users")
+}
+
+enum Role {
+  ADMIN
+  PROVIDER
+}
+
+// ============================================================
+// MODEL: ServiceType (Jenis Layanan)
+// ============================================================
+// Jenis layanan yang ditawarkan, menentukan durasi slot.
+// Contoh: "Pemeriksaan Kehamilan (30 menit)", "Imunisasi (15 menit)"
+model ServiceType {
+  id          String  @id @default(cuid())
+  name        String
+  duration    Int     // Durasi dalam menit (15, 30, 45, 60)
+  description String?
+  isActive    Boolean @default(true) @map("is_active")
+  color       String? // Warna hex untuk kalender UI
+
+  // Relations
+  userId   String    @map("user_id")
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  @@map("service_types")
+}
+
+// ============================================================
+// MODEL: Schedule (Jam Operasional Mingguan)
+// ============================================================
+// Mengatur ketersediaan provider per hari dalam seminggu.
+// Mendukung multiple sesi per hari (pagi + sore).
+model Schedule {
+  id        String  @id @default(cuid())
+  dayOfWeek Int     @map("day_of_week") // 0=Minggu, 1=Senin, ..., 6=Sabtu
+  startTime String  @map("start_time")  // Format "HH:mm" -> "08:00"
+  endTime   String  @map("end_time")    // Format "HH:mm" -> "12:00"
+  isActive  Boolean @default(true) @map("is_active")
+
+  // Relations
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Cegah duplikasi sesi pada hari & waktu yang sama
+  @@unique([userId, dayOfWeek, startTime])
+  @@map("schedules")
+}
+
+// ============================================================
+// MODEL: DateOverride (Override Tanggal Spesifik)
+// ============================================================
+// Untuk menutup/mengubah jam pada tanggal tertentu (libur, cuti, dll).
+model DateOverride {
+  id        String   @id @default(cuid())
+  date      DateTime @db.Date
+  isBlocked Boolean  @default(true) @map("is_blocked") // true = libur total
+  startTime String?  @map("start_time")
+  endTime   String?  @map("end_time")
+  reason    String?
+
+  // Relations
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("date_overrides")
+}
+
+// ============================================================
+// MODEL: Booking (Reservasi Pasien)
+// ============================================================
+// Inti dari sistem: data reservasi pasien.
+model Booking {
+  id              String        @id @default(cuid())
+  status          BookingStatus @default(PENDING)
+  date            DateTime      @db.Date
+  startTime       DateTime      @map("start_time")  // timestamptz
+  endTime         DateTime      @map("end_time")     // timestamptz
+
+  // Data Pasien
+  patientName     String        @map("patient_name")
+  patientPhone    String        @map("patient_phone")
+  patientNotes    String?       @map("patient_notes")
+
+  // Metadata
+  cancelReason    String?       @map("cancel_reason")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  userId        String      @map("user_id")
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  serviceTypeId String      @map("service_type_id")
+  serviceType   ServiceType @relation(fields: [serviceTypeId], references: [id])
+
+  // CONSTRAINT KRITIS: Mencegah double-booking di level database
+  @@unique([userId, startTime])
+  @@index([userId, date, status])
+  @@map("bookings")
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}

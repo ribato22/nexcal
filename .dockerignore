@@ -1,0 +1,28 @@
+# Dependency directories
+node_modules
+npm-debug.log*
+
+# Next.js build
+.next
+out
+
+# Environment (keep .env.example only)
+.env
+.env.local
+.env.production
+
+# Docker volumes
+postgres_data
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Prisma
+prisma/migrations/**/migration_lock.toml
