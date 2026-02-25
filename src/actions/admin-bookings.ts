@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { startOfDay, endOfDay, startOfWeek, endOfWeek } from "date-fns";
+import { startOfDay, endOfDay, startOfWeek, endOfWeek, format } from "date-fns";
+import { notifyBookingConfirmed, notifyBookingCancelled } from "@/lib/whatsapp";
 
 // ============================================================
 // Tipe & Interface
@@ -126,9 +127,13 @@ export async function updateBookingStatus(
 
     const { bookingId, status, cancelReason } = parsed.data;
 
-    // Pastikan booking milik admin ini
+    // Ambil booking + layanan + pemilik
     const booking = await prisma.booking.findFirst({
       where: { id: bookingId, userId: session.user.id },
+      include: {
+        serviceType: { select: { name: true, duration: true } },
+        user: { select: { clinicName: true } },
+      },
     });
 
     if (!booking) {
@@ -143,6 +148,23 @@ export async function updateBookingStatus(
         cancelReason: status === "CANCELLED" ? (cancelReason || null) : null,
       },
     });
+
+    // Fire-and-forget WhatsApp notification
+    const notifInfo = {
+      patientName: booking.patientName,
+      patientPhone: booking.patientPhone,
+      serviceName: booking.serviceType.name,
+      date: booking.date,
+      startTime: format(booking.startTime, "HH:mm"),
+      duration: booking.serviceType.duration,
+      clinicName: booking.user.clinicName || undefined,
+    };
+
+    if (status === "CONFIRMED") {
+      notifyBookingConfirmed(notifInfo);
+    } else if (status === "CANCELLED") {
+      notifyBookingCancelled(notifInfo, cancelReason);
+    }
 
     revalidatePath("/admin/bookings");
     revalidatePath("/admin/dashboard");

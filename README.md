@@ -41,6 +41,7 @@ Think of it as a **free Calendly** that you own, control, and can customize. No 
 - 📅 **Date Overrides** — Block holidays, vacations, or special dates
 - 🏷️ **Service Management** — CRUD services with custom colors and durations
 - 🔒 **Secure Auth** — Cookie-based authentication with bcrypt password hashing
+- 📢 **WhatsApp Reminders** — Auto-notify customers via [MultiWA](https://github.com/ribato22/MultiWA) (optional)
 
 ### 🛡️ 3-Layer Anti Double-Booking System
 
@@ -162,6 +163,9 @@ nexcal/
 | `AUTH_TRUST_HOST` | ✅ | Set `true` behind a reverse proxy |
 | `NEXT_PUBLIC_APP_NAME` | ❌ | Display name (default: "NexCal") |
 | `NEXT_PUBLIC_APP_URL` | ❌ | Public URL (default: "http://localhost:3000") |
+| `MULTIWA_API_URL` | ❌ | MultiWA API base URL (optional, enables WhatsApp notifications) |
+| `MULTIWA_API_KEY` | ❌ | MultiWA API key |
+| `MULTIWA_SESSION_ID` | ❌ | MultiWA session ID |
 
 See [`.env.example`](.env.example) for the full template.
 
@@ -187,7 +191,7 @@ Contributions, issues, and feature requests are welcome!
 
 ## 💡 Roadmap
 
-- [ ] WhatsApp booking reminders (via API)
+- [x] WhatsApp booking reminders (via [MultiWA](https://github.com/ribato22/MultiWA))
 - [ ] Multi-provider support (businesses with multiple staff)
 - [ ] Customer appointment history portal
 - [ ] Google Calendar sync
