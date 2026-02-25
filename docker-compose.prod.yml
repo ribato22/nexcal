@@ -1,0 +1,46 @@
+# ============================================================
+# NexCal — Production Docker Compose
+# ============================================================
+# Usage:
+#   cp .env.example .env    # Edit your secrets
+#   docker compose -f docker-compose.prod.yml up -d --build
+# ============================================================
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: nexcal-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nexcal_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-REDACTED_DB_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-nexcal_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nexcal_admin} -d ${POSTGRES_DB:-nexcal_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nexcal-app
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-nexcal_admin}:${POSTGRES_PASSWORD:-REDACTED_DB_PASSWORD}@db:5432/${POSTGRES_DB:-nexcal_db}?schema=public"
+      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_TRUST_HOST: "true"
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-NexCal}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+    driver: local
