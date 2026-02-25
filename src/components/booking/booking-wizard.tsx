@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useActionState } from "react";
-import { getAvailableSlotsAction } from "@/actions/slots";
+import { getAvailableSlotsAction, getActiveServices } from "@/actions/slots";
 import { createBookingAction } from "@/actions/booking";
 import {
   format,
@@ -19,6 +19,12 @@ import { id as idLocale } from "date-fns/locale";
 
 const appName = process.env.NEXT_PUBLIC_APP_NAME || "NexCal";
 
+interface Provider {
+  id: string;
+  name: string;
+  clinicName: string | null;
+}
+
 interface Service {
   id: string;
   name: string;
@@ -34,17 +40,113 @@ interface TimeSlot {
 }
 
 // ============================================================
-// Step 1: Service Selector
+// Step 1: Provider Selector (NEW in v2.0)
+// ============================================================
+function ProviderSelector({
+  providers,
+  selected,
+  onSelect,
+}: {
+  providers: Provider[];
+  selected: string | null;
+  onSelect: (id: string) => void;
+}) {
+  // If only 1 provider, auto-select
+  useEffect(() => {
+    if (providers.length === 1 && !selected) {
+      onSelect(providers[0].id);
+    }
+  }, [providers, selected, onSelect]);
+
+  // Don't render picker if only 1 provider
+  if (providers.length <= 1) return null;
+
+  return (
+    <div>
+      <h2 className="mb-1 text-lg font-semibold text-slate-900">
+        Pilih Praktisi
+      </h2>
+      <p className="mb-4 text-sm text-slate-500">
+        Pilih staf atau dokter yang akan menangani Anda.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {providers.map((p) => {
+          const isActive = selected === p.id;
+          return (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => onSelect(p.id)}
+              className={`group relative flex items-center gap-3 rounded-xl border-2 p-4 text-left transition-all ${
+                isActive
+                  ? "border-blue-500 bg-blue-50 shadow-md shadow-blue-100"
+                  : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
+              }`}
+            >
+              {/* Avatar */}
+              <div
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+                  isActive
+                    ? "bg-blue-600 text-white"
+                    : "bg-slate-100 text-slate-500"
+                }`}
+              >
+                {p.name
+                  .split(" ")
+                  .map((w) => w[0])
+                  .slice(0, 2)
+                  .join("")
+                  .toUpperCase()}
+              </div>
+              <div>
+                <span className="text-sm font-semibold text-slate-900">
+                  {p.name}
+                </span>
+                {p.clinicName && (
+                  <p className="text-xs text-slate-500">{p.clinicName}</p>
+                )}
+              </div>
+              {isActive && (
+                <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-blue-500">
+                  <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                  </svg>
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Step 2: Service Selector (filtered by provider)
 // ============================================================
 function ServiceSelector({
   services,
   selected,
   onSelect,
+  loading,
 }: {
   services: Service[];
   selected: string | null;
   onSelect: (id: string) => void;
+  loading: boolean;
 }) {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <svg className="h-6 w-6 animate-spin text-blue-500" viewBox="0 0 24 24" fill="none">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+        <span className="ml-2 text-sm text-slate-500">Memuat layanan...</span>
+      </div>
+    );
+  }
+
   return (
     <div>
       <h2 className="mb-1 text-lg font-semibold text-slate-900">
@@ -108,7 +210,7 @@ function ServiceSelector({
 }
 
 // ============================================================
-// Step 2: Calendar Picker
+// Step 3: Calendar Picker
 // ============================================================
 function CalendarPicker({
   selectedDate,
@@ -124,8 +226,7 @@ function CalendarPicker({
   const monthEnd = endOfMonth(currentMonth);
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
-  // Padding hari kosong di awal bulan
-  const startDayOfWeek = getDay(monthStart); // 0=Sun
+  const startDayOfWeek = getDay(monthStart);
   const paddingDays = Array.from({ length: startDayOfWeek }, (_, i) => i);
 
   return (
@@ -138,7 +239,6 @@ function CalendarPicker({
       </p>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4">
-        {/* Month Navigation */}
         <div className="mb-3 flex items-center justify-between">
           <button
             type="button"
@@ -163,14 +263,12 @@ function CalendarPicker({
           </button>
         </div>
 
-        {/* Day Headers */}
         <div className="mb-1 grid grid-cols-7 text-center text-xs font-medium text-slate-400">
           {["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"].map((d) => (
             <div key={d} className="py-1">{d}</div>
           ))}
         </div>
 
-        {/* Day Grid */}
         <div className="grid grid-cols-7 gap-1">
           {paddingDays.map((i) => (
             <div key={`pad-${i}`} />
@@ -207,7 +305,7 @@ function CalendarPicker({
 }
 
 // ============================================================
-// Step 3: Time Slot Picker
+// Step 4: Time Slot Picker
 // ============================================================
 function SlotPicker({
   slots,
@@ -292,7 +390,7 @@ function SlotPicker({
 }
 
 // ============================================================
-// Step 4: Booking Form
+// Step 5: Booking Form
 // ============================================================
 function BookingForm({
   serviceId,
@@ -312,7 +410,6 @@ function BookingForm({
     summary: null,
   });
 
-  // Jika sukses, tampilkan halaman konfirmasi
   if (state.success && state.summary) {
     return <BookingSuccess summary={state.summary} />;
   }
@@ -474,9 +571,12 @@ function BookingSuccess({ summary }: { summary: { serviceName: string; date: str
 }
 
 // ============================================================
-// Main Booking Wizard (Orchestrator)
+// Main Booking Wizard (Orchestrator) — v2.0 with Provider Step
 // ============================================================
-export function BookingWizard({ services }: { services: Service[] }) {
+export function BookingWizard({ providers }: { providers: Provider[] }) {
+  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+  const [services, setServices] = useState<Service[]>([]);
+  const [loadingServices, setLoadingServices] = useState(false);
   const [selectedService, setSelectedService] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
@@ -484,12 +584,35 @@ export function BookingWizard({ services }: { services: Service[] }) {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
-  // Fetch slots ketika service + date berubah
+  const hasMultipleProviders = providers.length > 1;
+
+  // Fetch services when provider changes
+  useEffect(() => {
+    if (!selectedProvider) return;
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (!cancelled) {
+        setLoadingServices(true);
+        setSelectedService(null);
+        setSelectedDate(null);
+        setSelectedTime(null);
+        setSlots([]);
+      }
+    });
+    getActiveServices(selectedProvider).then((result) => {
+      if (!cancelled) {
+        setServices(result as Service[]);
+        setLoadingServices(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [selectedProvider]);
+
+  // Fetch slots when service + date changes
   useEffect(() => {
     if (!selectedService || !selectedDate) return;
     let cancelled = false;
     const dateStr = format(selectedDate, "yyyy-MM-dd");
-    // Reset state via promise microtask to satisfy React 19 lint
     Promise.resolve().then(() => {
       if (!cancelled) {
         setLoadingSlots(true);
@@ -505,9 +628,24 @@ export function BookingWizard({ services }: { services: Service[] }) {
     return () => { cancelled = true; };
   }, [selectedService, selectedDate]);
 
-  // Step tracking
+  // Step tracking — offset by 1 if multi-provider (step 0 = provider)
+  const stepOffset = hasMultipleProviders ? 1 : 0;
   const currentStep =
-    showForm ? 4 : selectedTime ? 3 : selectedDate ? 2 : selectedService ? 1 : 0;
+    showForm
+      ? 3 + stepOffset
+      : selectedTime
+        ? 2 + stepOffset
+        : selectedDate
+          ? 1 + stepOffset
+          : selectedService
+            ? 0 + stepOffset
+            : selectedProvider
+              ? 0 + stepOffset
+              : 0;
+
+  const stepLabels = hasMultipleProviders
+    ? ["Praktisi", "Layanan", "Tanggal", "Waktu", "Data Diri"]
+    : ["Layanan", "Tanggal", "Waktu", "Data Diri"];
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -535,7 +673,7 @@ export function BookingWizard({ services }: { services: Service[] }) {
       <div className="border-b border-slate-100 bg-white">
         <div className="mx-auto max-w-2xl px-4 py-3">
           <div className="flex items-center gap-2 text-xs">
-            {["Layanan", "Tanggal", "Waktu", "Data Diri"].map((step, i) => (
+            {stepLabels.map((step, i) => (
               <div key={step} className="flex items-center gap-2">
                 <span
                   className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
@@ -551,7 +689,7 @@ export function BookingWizard({ services }: { services: Service[] }) {
                 <span className={`hidden sm:inline ${i <= currentStep ? "text-slate-700" : "text-slate-400"}`}>
                   {step}
                 </span>
-                {i < 3 && (
+                {i < stepLabels.length - 1 && (
                   <div className={`h-px w-6 sm:w-10 ${i < currentStep ? "bg-blue-500" : "bg-slate-200"}`} />
                 )}
               </div>
@@ -571,19 +709,33 @@ export function BookingWizard({ services }: { services: Service[] }) {
           />
         ) : (
           <div className="space-y-8">
-            {/* Step 1: Layanan */}
-            <ServiceSelector
-              services={services}
-              selected={selectedService}
+            {/* Step 1: Provider (only if multiple) */}
+            <ProviderSelector
+              providers={providers}
+              selected={selectedProvider}
               onSelect={(id) => {
-                setSelectedService(id);
-                setSelectedDate(null);
-                setSelectedTime(null);
-                setSlots([]);
+                if (id !== selectedProvider) {
+                  setSelectedProvider(id);
+                }
               }}
             />
 
-            {/* Step 2: Kalender */}
+            {/* Step 2: Service (filtered by provider) */}
+            {selectedProvider && (
+              <ServiceSelector
+                services={services}
+                selected={selectedService}
+                loading={loadingServices}
+                onSelect={(id) => {
+                  setSelectedService(id);
+                  setSelectedDate(null);
+                  setSelectedTime(null);
+                  setSlots([]);
+                }}
+              />
+            )}
+
+            {/* Step 3: Calendar */}
             {selectedService && (
               <CalendarPicker
                 selectedDate={selectedDate}
@@ -594,7 +746,7 @@ export function BookingWizard({ services }: { services: Service[] }) {
               />
             )}
 
-            {/* Step 3: Slot Waktu */}
+            {/* Step 4: Time Slots */}
             {selectedService && selectedDate && (
               <div>
                 <h2 className="mb-1 text-lg font-semibold text-slate-900">
@@ -612,7 +764,7 @@ export function BookingWizard({ services }: { services: Service[] }) {
               </div>
             )}
 
-            {/* Lanjut ke Form */}
+            {/* Continue to Form */}
             {selectedTime && (
               <button
                 type="button"
