@@ -6,6 +6,7 @@ interface ServiceWithProvider {
   id: string;
   name: string;
   duration: number;
+  bufferTime: number;
   description: string | null;
   isActive: boolean;
   color: string | null;
@@ -24,6 +25,7 @@ export default async function ServicesPage() {
       id: true,
       name: true,
       duration: true,
+      bufferTime: true,
       description: true,
       isActive: true,
       color: true,
@@ -119,6 +121,16 @@ function ServiceCard({
               </svg>
               {durasiLabel}
             </span>
+
+            {/* Buffer time badge */}
+            {service.bufferTime > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 dark:bg-amber-950/30 dark:text-amber-400">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
+                </svg>
+                Jeda {service.bufferTime} mnt
+              </span>
+            )}
 
             {/* Status badge */}
             <span

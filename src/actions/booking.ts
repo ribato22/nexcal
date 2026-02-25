@@ -77,7 +77,7 @@ export async function createBookingAction(
     // Ambil data layanan
     const service = await prisma.serviceType.findUnique({
       where: { id: serviceTypeId },
-      select: { duration: true, userId: true, name: true },
+      select: { duration: true, bufferTime: true, userId: true, name: true },
     });
 
     if (!service) {
@@ -114,7 +114,7 @@ export async function createBookingAction(
           date: refDate,
           status: { in: ["PENDING", "CONFIRMED"] },
         },
-        select: { startTime: true, endTime: true },
+        select: { startTime: true, endTime: true, serviceType: { select: { bufferTime: true } } },
       }),
     ]);
 
@@ -131,9 +131,10 @@ export async function createBookingAction(
       endTime: o.endTime,
     }));
 
-    const existingBookings: ExistingBooking[] = bookings.map((b: { startTime: Date; endTime: Date }) => ({
+    const existingBookings: ExistingBooking[] = bookings.map((b: { startTime: Date; endTime: Date; serviceType: { bufferTime: number } }) => ({
       startTime: b.startTime,
       endTime: b.endTime,
+      bufferTime: b.serviceType.bufferTime,
     }));
 
     const availableSlots = getAvailableSlots(
@@ -141,7 +142,8 @@ export async function createBookingAction(
       scheduleSessions,
       dateOverrides,
       existingBookings,
-      service.duration
+      service.duration,
+      service.bufferTime
     );
 
     const isSlotAvailable = availableSlots.some(

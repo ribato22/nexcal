@@ -38,11 +38,12 @@ export interface DateOverrideData {
 }
 
 /**
- * Data booking yang sudah ada.
+ * Data booking yang sudah ada (termasuk buffer layanan).
  */
 export interface ExistingBooking {
   startTime: Date;
   endTime: Date;
+  bufferTime?: number; // Jeda setelah booking (menit), dari ServiceType
 }
 
 /**
@@ -89,12 +90,14 @@ export function generateSlotsFromSession(
  * 2. Jika tidak ada override → gunakan jadwal reguler untuk hari itu
  * 3. Generate slot dari setiap sesi
  * 4. Tandai slot yang sudah di-booking sebagai unavailable
+ *    ↳ Buffer time dari booking sebelumnya diperhitungkan!
  *
  * @param date - Tanggal yang ingin dicek
  * @param schedules - Jadwal operasional mingguan
  * @param overrides - Override tanggal (libur/custom)
- * @param bookings - Booking yang sudah ada
+ * @param bookings - Booking yang sudah ada (termasuk bufferTime)
  * @param durationMinutes - Durasi layanan dalam menit
+ * @param bufferMinutes - Jeda setelah layanan BARU yang ingin di-booking (menit)
  * @returns Array slot dengan status ketersediaan
  */
 export function getAvailableSlots(
@@ -102,7 +105,8 @@ export function getAvailableSlots(
   schedules: ScheduleSession[],
   overrides: DateOverrideData[],
   bookings: ExistingBooking[],
-  durationMinutes: number
+  durationMinutes: number,
+  bufferMinutes: number = 0
 ): TimeSlot[] {
   const targetDate = startOfDay(date);
   const dayOfWeek = getDay(date); // 0=Sunday ... 6=Saturday
@@ -123,7 +127,7 @@ export function getAvailableSlots(
         override.endTime,
         durationMinutes
       );
-      return markBookedSlots(slots, bookings, date);
+      return markBookedSlots(slots, bookings, date, bufferMinutes);
     }
   }
 
@@ -145,17 +149,30 @@ export function getAvailableSlots(
     allSlots.push(...sessionSlots);
   }
 
-  // 4. Tandai slot yang sudah di-booking
-  return markBookedSlots(allSlots, bookings, date);
+  // 4. Tandai slot yang sudah di-booking (dengan buffer time)
+  return markBookedSlots(allSlots, bookings, date, bufferMinutes);
 }
 
 /**
  * Menandai slot yang bertabrakan dengan booking yang sudah ada.
+ *
+ * Buffer Time Logic:
+ * - Setiap booking yang ADA memperluas "zona blokir"-nya ke depan
+ *   sebesar `booking.bufferTime` menit (jeda setelah booking sebelumnya).
+ * - Slot BARU yang ingin di-booking juga perlu ruang `newBufferMinutes`
+ *   setelahnya, sehingga slotEnd + newBuffer tidak boleh melampaui
+ *   booking berikutnya.
+ *
+ * Contoh: Booking 08:00-08:30 (bufferTime=15)
+ * → Zona blokir = 08:00-08:45
+ * → Slot 08:30 TIDAK tersedia (tabrakan dengan zona buffer)
+ * → Slot 08:45 TERSEDIA (mulai tepat setelah zona buffer)
  */
 function markBookedSlots(
   slots: TimeSlot[],
   bookings: ExistingBooking[],
-  date: Date
+  date: Date,
+  newBufferMinutes: number = 0
 ): TimeSlot[] {
   const targetDate = startOfDay(date);
 
@@ -172,10 +189,27 @@ function markBookedSlots(
     const slotStart = parse(slot.startTime, "HH:mm", targetDate);
     const slotEnd = parse(slot.endTime, "HH:mm", targetDate);
 
-    // Cek apakah slot bertabrakan dengan booking yang ada
+    // Zona yang dibutuhkan slot baru: [slotStart, slotEnd + newBuffer)
+    const slotEndWithBuffer = addMinutes(slotEnd, newBufferMinutes);
+
+    // Cek apakah slot bertabrakan dengan booking yang ada (termasuk buffer)
     const isBooked = dayBookings.some((booking) => {
-      // Overlap terjadi jika: bookingStart < slotEnd DAN bookingEnd > slotStart
-      return isBefore(booking.startTime, slotEnd) && isBefore(slotStart, booking.endTime);
+      // Zona blokir booking lama: [bookingStart, bookingEnd + bookingBuffer)
+      const bookingBuffer = booking.bufferTime || 0;
+      const bookingEndWithBuffer = addMinutes(booking.endTime, bookingBuffer);
+
+      // Overlap: ada irisan antara zona slot baru dan zona booking lama
+      // Condition 1: booking lama + buffernya overlap dengan slot baru
+      const existingOverlap =
+        isBefore(booking.startTime, slotEnd) &&
+        isBefore(slotStart, bookingEndWithBuffer);
+
+      // Condition 2: slot baru + buffernya overlap dengan booking lama
+      const newBufferOverlap =
+        isBefore(slotStart, booking.startTime) &&
+        isBefore(booking.startTime, slotEndWithBuffer);
+
+      return existingOverlap || newBufferOverlap;
     });
 
     return {
@@ -195,7 +229,8 @@ export function getAvailableSlotsForRange(
   schedules: ScheduleSession[],
   overrides: DateOverrideData[],
   bookings: ExistingBooking[],
-  durationMinutes: number
+  durationMinutes: number,
+  bufferMinutes: number = 0
 ): Map<string, TimeSlot[]> {
   const days = eachDayOfInterval({ start: startDate, end: endDate });
   const result = new Map<string, TimeSlot[]>();
@@ -207,7 +242,8 @@ export function getAvailableSlotsForRange(
       schedules,
       overrides,
       bookings,
-      durationMinutes
+      durationMinutes,
+      bufferMinutes
     );
     result.set(dateKey, slots);
   }
