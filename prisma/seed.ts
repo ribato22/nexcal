@@ -25,7 +25,8 @@ async function main() {
   // ============================================================
   // 2. Users: 1 OWNER + 2 STAFF
   // ============================================================
-  const hashedPassword = await hash("REDACTED_SEED_PASSWORD", 12);
+  const seedPassword = process.env.SEED_PASSWORD || "changeme123";
+  const hashedPassword = await hash(seedPassword, 12);
 
   const owner = await prisma.user.upsert({
     where: { email: "admin@kliniku.com" },
@@ -318,9 +319,10 @@ async function main() {
   console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log("🎉 Seed complete! Login credentials:");
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log("OWNER:  admin@kliniku.com       / REDACTED_SEED_PASSWORD");
-  console.log("STAFF:  dr.budi@kliniku.com     / REDACTED_SEED_PASSWORD");
-  console.log("STAFF:  bidan.sari@kliniku.com  / REDACTED_SEED_PASSWORD");
+  console.log("OWNER:  admin@kliniku.com       / <SEED_PASSWORD>");
+  console.log("STAFF:  dr.budi@kliniku.com     / <SEED_PASSWORD>");
+  console.log("STAFF:  bidan.sari@kliniku.com  / <SEED_PASSWORD>");
+  console.log(`(password = $SEED_PASSWORD env var, default: changeme123)`);
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 }
 
