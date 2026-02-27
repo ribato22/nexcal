@@ -42,7 +42,7 @@ export default async function SchedulePage() {
             <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
               Klik tombol &quot;+ Sesi&quot; untuk menambah sesi (pagi, siang, dll) pada setiap hari. Sesuaikan jam mulai dan selesai setiap sesi.
             </p>
-            <ScheduleEditor initialSessions={initialSessions} />
+            <ScheduleEditor key={JSON.stringify(initialSessions)} initialSessions={initialSessions} />
           </div>
         </div>
 

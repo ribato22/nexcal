@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getDataScope } from "@/lib/rbac";
 import { auth } from "@/lib/auth";
+import { AddServiceButton } from "@/components/admin/service-form";
 
 interface ServiceWithProvider {
   id: string;
@@ -46,15 +47,7 @@ export default async function ServicesPage() {
             Kelola layanan yang tersedia beserta durasi konsultasi/tindakan.
           </p>
         </div>
-        <button
-          disabled
-          className="flex items-center gap-2 rounded-xl bg-linear-to-r from-blue-600 to-cyan-500 px-4 py-2.5 text-sm font-semibold text-white opacity-50 shadow-lg shadow-blue-500/20 cursor-not-allowed"
-        >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          Tambah Layanan
-        </button>
+        <AddServiceButton />
       </div>
 
       {/* Services Grid */}

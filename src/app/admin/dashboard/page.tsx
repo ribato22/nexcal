@@ -296,26 +296,26 @@ export default async function DashboardPage() {
           <div className="space-y-2">
             {todayBookings.map((b) => {
               const statusColors: Record<string, string> = {
-                PENDING: "border-l-amber-400 bg-amber-50/50",
-                CONFIRMED: "border-l-green-500 bg-green-50/50",
+                PENDING: "border-l-amber-400 bg-amber-50/50 dark:bg-amber-950/20",
+                CONFIRMED: "border-l-green-500 bg-green-50/50 dark:bg-green-950/20",
               };
               const sColor = statusColors[b.status] || "border-l-slate-300";
               return (
                 <div
                   key={b.id}
-                  className={`flex items-center justify-between rounded-xl border border-slate-200 border-l-4 px-4 py-3 transition-shadow hover:shadow-sm ${sColor}`}
+                  className={`flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700 border-l-4 px-4 py-3 transition-shadow hover:shadow-sm ${sColor}`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white shadow-sm">
-                      <span className="text-sm font-bold text-slate-700">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white shadow-sm dark:bg-slate-800">
+                      <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
                         {format(new Date(b.startTime), "HH:mm")}
                       </span>
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-slate-900">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">
                         {b.patientName}
                       </p>
-                      <div className="flex items-center gap-2 text-xs text-slate-500">
+                      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                         <span
                           className="h-2 w-2 rounded-full"
                           style={{ backgroundColor: b.serviceType.color || "#6366f1" }}
@@ -327,8 +327,8 @@ export default async function DashboardPage() {
                   <span
                     className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                       b.status === "CONFIRMED"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-amber-100 text-amber-700"
+                        ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400"
+                        : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
                     }`}
                   >
                     {b.status === "CONFIRMED" ? "Dikonfirmasi" : "Menunggu"}

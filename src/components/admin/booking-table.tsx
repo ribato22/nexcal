@@ -282,58 +282,58 @@ interface BookingRow {
 export function BookingTable({ bookings, isOwner = false }: { bookings: BookingRow[]; isOwner?: boolean }) {
   if (bookings.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 py-16">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50">
+      <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 py-16 dark:border-slate-700">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 dark:bg-slate-800">
           <svg className="h-7 w-7 text-slate-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5m6 4.125l2.25 2.25m0 0l2.25 2.25M12 13.875l2.25-2.25M12 13.875l-2.25 2.25M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
           </svg>
         </div>
-        <p className="mt-4 text-sm font-medium text-slate-600">Tidak ada reservasi ditemukan</p>
-        <p className="mt-1 text-xs text-slate-400">Coba ubah filter pencarian Anda.</p>
+        <p className="mt-4 text-sm font-medium text-slate-600 dark:text-slate-400">Tidak ada reservasi ditemukan</p>
+        <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Coba ubah filter pencarian Anda.</p>
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
       {/* Desktop Table */}
       <table className="hidden min-w-full sm:table">
-        <thead className="border-b border-slate-100 bg-slate-50/80">
+        <thead className="border-b border-slate-100 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-800/60">
           <tr>
-            <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Pasien
             </th>
-            <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Layanan
             </th>
             {isOwner && (
-              <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+              <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Staf
               </th>
             )}
-            <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Tanggal & Waktu
             </th>
-            <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Status
             </th>
-            <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Bayar
             </th>
-            <th className="px-5 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <th className="px-5 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Aksi
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
           {bookings.map((b) => (
-            <tr key={b.id} className="transition-colors hover:bg-slate-50/50">
+            <tr key={b.id} className="transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
               <td className="px-5 py-4">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
                     {b.patientName}
                   </p>
-                  <p className="mt-0.5 text-xs text-slate-500">
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                     {b.patientPhone}
                   </p>
                 </div>
@@ -344,14 +344,14 @@ export function BookingTable({ bookings, isOwner = false }: { bookings: BookingR
                     className="h-2.5 w-2.5 rounded-full"
                     style={{ backgroundColor: b.serviceType.color || "#6366f1" }}
                   />
-                  <span className="text-sm text-slate-700">
+                  <span className="text-sm text-slate-700 dark:text-slate-300">
                     {b.serviceType.name}
                   </span>
                 </div>
               </td>
               {isOwner && (
                 <td className="px-5 py-4">
-                  <span className="inline-flex items-center gap-1.5 text-sm text-slate-600">
+                  <span className="inline-flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400">
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">
                       {(b.user?.name || "?").charAt(0)}
                     </span>
@@ -360,10 +360,10 @@ export function BookingTable({ bookings, isOwner = false }: { bookings: BookingR
                 </td>
               )}
               <td className="px-5 py-4">
-                <p className="text-sm text-slate-900">
+                <p className="text-sm text-slate-900 dark:text-white">
                   {format(new Date(b.date), "EEE, d MMM yyyy", { locale: idLocale })}
                 </p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   {format(new Date(b.startTime), "HH:mm")} – {format(new Date(b.endTime), "HH:mm")}
                 </p>
               </td>
@@ -387,22 +387,22 @@ export function BookingTable({ bookings, isOwner = false }: { bookings: BookingR
       </table>
 
       {/* Mobile Cards */}
-      <div className="divide-y divide-slate-100 sm:hidden">
+      <div className="divide-y divide-slate-100 dark:divide-slate-800 sm:hidden">
         {bookings.map((b) => (
           <div key={b.id} className="p-4">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm font-semibold text-slate-900">
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">
                   {b.patientName}
                 </p>
-                <p className="mt-0.5 text-xs text-slate-500">{b.patientPhone}</p>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{b.patientPhone}</p>
               </div>
               <div className="flex items-center gap-2">
                 <StatusBadge status={b.status} />
                 <ActionMenu bookingId={b.id} currentStatus={b.status} />
               </div>
             </div>
-            <div className="mt-2 flex items-center gap-3 text-xs text-slate-600">
+            <div className="mt-2 flex items-center gap-3 text-xs text-slate-600 dark:text-slate-400">
               <div className="flex items-center gap-1">
                 <span
                   className="h-2 w-2 rounded-full"
