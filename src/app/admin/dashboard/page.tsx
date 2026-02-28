@@ -144,7 +144,11 @@ export default async function DashboardPage() {
 
         <div className="flex h-40 items-end gap-[3px]">
           {analytics.dailyTrend.map((d) => {
-            const height = maxTrendBookings > 0 ? (d.bookings / maxTrendBookings) * 100 : 0;
+            const max = Math.max(maxTrendBookings, 1);
+            // Container is h-40 = 160px. Max usable bar height ~140px.
+            const barHeight = d.bookings > 0
+              ? Math.max(Math.round((d.bookings / max) * 140), 3)
+              : 1;
             return (
               <div
                 key={d.date}
@@ -152,11 +156,11 @@ export default async function DashboardPage() {
                 title={`${d.label}: ${d.bookings} reservasi`}
               >
                 <div
-                  className="w-full rounded-t bg-blue-500 transition-all group-hover:bg-blue-600 dark:bg-blue-400"
-                  style={{ height: `${Math.max(height, 2)}%` }}
+                  className="absolute inset-x-0 bottom-0 rounded-t-sm bg-blue-500 transition-all group-hover:bg-blue-600 dark:bg-blue-400"
+                  style={{ height: `${barHeight}px` }}
                 />
                 {/* Tooltip on hover */}
-                <div className="pointer-events-none absolute -top-10 left-1/2 z-10 hidden -translate-x-1/2 rounded bg-slate-800 px-2 py-1 text-[10px] text-white whitespace-nowrap group-hover:block">
+                <div className="pointer-events-none absolute -top-8 left-1/2 z-10 hidden -translate-x-1/2 rounded bg-slate-800 px-2 py-1 text-[10px] text-white whitespace-nowrap group-hover:block">
                   {d.label}: {d.bookings}
                 </div>
               </div>

@@ -150,7 +150,21 @@ export function getAvailableSlots(
   }
 
   // 4. Tandai slot yang sudah di-booking (dengan buffer time)
-  return markBookedSlots(allSlots, bookings, date, bufferMinutes);
+  const markedSlots = markBookedSlots(allSlots, bookings, date, bufferMinutes);
+
+  // 5. Filter slot yang sudah lewat jika tanggal = hari ini
+  const now = new Date();
+  if (startOfDay(now).getTime() === targetDate.getTime()) {
+    return markedSlots.map((slot) => {
+      const slotStart = parse(slot.startTime, "HH:mm", targetDate);
+      if (isBefore(slotStart, now)) {
+        return { ...slot, available: false };
+      }
+      return slot;
+    });
+  }
+
+  return markedSlots;
 }
 
 /**

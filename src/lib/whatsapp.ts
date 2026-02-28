@@ -3,6 +3,7 @@
  * NexCal — WhatsApp Notification via MultiWA
  * ============================================================
  * Non-blocking WhatsApp messaging via the MultiWA API Gateway.
+ * Config priority: Organization DB settings → env vars fallback.
  * All functions are fire-and-forget: they will NEVER throw or
  * block the main booking flow, even if MultiWA is unreachable.
  * ============================================================
@@ -10,49 +11,75 @@
 
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
+import { prisma } from "@/lib/prisma";
 
 // ============================================================
-// Config — reads from environment variables
+// Config — DB first, env fallback
 // ============================================================
 
-const MULTIWA_API_URL = process.env.MULTIWA_API_URL || "";
-const MULTIWA_API_KEY = process.env.MULTIWA_API_KEY || "";
-const MULTIWA_SESSION_ID = process.env.MULTIWA_SESSION_ID || "";
+const ENV_MULTIWA_API_URL = process.env.MULTIWA_API_URL || "";
+const ENV_MULTIWA_API_KEY = process.env.MULTIWA_API_KEY || "";
+const ENV_MULTIWA_SESSION_ID = process.env.MULTIWA_SESSION_ID || "";
 
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "NexCal";
 
-/** Check if WhatsApp notifications are configured */
-function isConfigured(): boolean {
-  return !!(MULTIWA_API_URL && MULTIWA_API_KEY && MULTIWA_SESSION_ID);
+interface WhatsAppConfig {
+  apiUrl: string;
+  apiKey: string;
+  sessionId: string;
+}
+
+/**
+ * Get WhatsApp config for a given organization.
+ * Priority: DB settings → env fallback.
+ */
+async function getConfig(organizationId?: string | null): Promise<WhatsAppConfig> {
+  if (organizationId) {
+    try {
+      const org = await prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { multiwaUrl: true, multiwaApiKey: true, multiwaSessionId: true },
+      });
+      if (org?.multiwaUrl && org?.multiwaApiKey && org?.multiwaSessionId) {
+        return {
+          apiUrl: org.multiwaUrl,
+          apiKey: org.multiwaApiKey,
+          sessionId: org.multiwaSessionId,
+        };
+      }
+    } catch {
+      // Fall through to env
+    }
+  }
+  return {
+    apiUrl: ENV_MULTIWA_API_URL,
+    apiKey: ENV_MULTIWA_API_KEY,
+    sessionId: ENV_MULTIWA_SESSION_ID,
+  };
 }
 
 // ============================================================
 // Core: sendWhatsApp — fire-and-forget HTTP POST
 // ============================================================
 
-/**
- * Send a WhatsApp message via MultiWA API.
- * This function is intentionally non-blocking and will never throw.
- * If MultiWA is down or misconfigured, the error is logged silently.
- */
-async function sendWhatsApp(phone: string, message: string): Promise<void> {
-  if (!isConfigured()) return;
+async function sendWhatsApp(phone: string, message: string, config: WhatsAppConfig): Promise<void> {
+  if (!config.apiUrl || !config.apiKey || !config.sessionId) return;
 
   try {
     const normalizedPhone = normalizePhone(phone);
-    const url = `${MULTIWA_API_URL}/api/sessions/${MULTIWA_SESSION_ID}/messages/send`;
+    const url = `${config.apiUrl}/api/sessions/${config.sessionId}/messages/send`;
 
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": MULTIWA_API_KEY,
+        "X-API-Key": config.apiKey,
       },
       body: JSON.stringify({
         to: normalizedPhone,
         text: message,
       }),
-      signal: AbortSignal.timeout(10_000), // 10s timeout
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!response.ok) {
@@ -61,7 +88,6 @@ async function sendWhatsApp(phone: string, message: string): Promise<void> {
       );
     }
   } catch (err) {
-    // Silently log — never crash the booking flow
     console.warn(`[WhatsApp] Send failed (non-blocking):`, err instanceof Error ? err.message : err);
   }
 }
@@ -70,7 +96,6 @@ async function sendWhatsApp(phone: string, message: string): Promise<void> {
 // Phone number normalization (Indonesian format)
 // ============================================================
 
-/** Normalize phone: strip spaces/dashes, convert 08xx → 628xx */
 function normalizePhone(phone: string): string {
   let cleaned = phone.replace(/[\s\-+]/g, "");
   if (cleaned.startsWith("08")) {
@@ -91,21 +116,20 @@ interface BookingInfo {
   patientPhone: string;
   serviceName: string;
   date: Date;
-  startTime: string; // "HH:mm"
+  startTime: string;
   duration: number;
   clinicName?: string;
+  organizationId?: string | null;
+  manageUrl?: string;
 }
 
-/** Format date to Indonesian locale, e.g. "Senin, 3 Maret 2026" */
 function formatDate(date: Date): string {
   return format(date, "EEEE, d MMMM yyyy", { locale: id });
 }
 
-// ── Template 1: Booking Received (PENDING) ──────────────────
-
 function buildBookingReceivedMessage(info: BookingInfo): string {
   const clinic = info.clinicName || APP_NAME;
-  return [
+  const lines = [
     `✅ *Booking Diterima*`,
     ``,
     `Halo *${info.patientName}*,`,
@@ -117,17 +141,17 @@ function buildBookingReceivedMessage(info: BookingInfo): string {
     `• Jam: ${info.startTime} (${info.duration} menit)`,
     ``,
     `Kami akan mengirim notifikasi setelah booking dikonfirmasi.`,
-    ``,
-    `Terima kasih! 🙏`,
-    `— ${clinic}`,
-  ].join("\n");
+  ];
+  if (info.manageUrl) {
+    lines.push(``, `🔗 *Kelola Booking:* ${info.manageUrl}`);
+  }
+  lines.push(``, `Terima kasih! 🙏`, `— ${clinic}`);
+  return lines.join("\n");
 }
-
-// ── Template 2: Booking Confirmed ───────────────────────────
 
 function buildBookingConfirmedMessage(info: BookingInfo): string {
   const clinic = info.clinicName || APP_NAME;
-  return [
+  const lines = [
     `🎉 *Booking Dikonfirmasi!*`,
     ``,
     `Halo *${info.patientName}*,`,
@@ -138,19 +162,16 @@ function buildBookingConfirmedMessage(info: BookingInfo): string {
     `• Tanggal: ${formatDate(info.date)}`,
     `• Jam: ${info.startTime} (${info.duration} menit)`,
     ``,
-    `Mohon datang 10 menit sebelum jadwal. Jika ingin membatalkan, hubungi kami secepatnya.`,
-    ``,
-    `Sampai jumpa! 👋`,
-    `— ${clinic}`,
-  ].join("\n");
+    `Mohon datang 10 menit sebelum jadwal.`,
+  ];
+  if (info.manageUrl) {
+    lines.push(``, `🔗 *Kelola Booking:* ${info.manageUrl}`);
+  }
+  lines.push(``, `Sampai jumpa! 👋`, `— ${clinic}`);
+  return lines.join("\n");
 }
 
-// ── Template 3: Booking Cancelled ───────────────────────────
-
-function buildBookingCancelledMessage(
-  info: BookingInfo,
-  reason?: string | null
-): string {
+function buildBookingCancelledMessage(info: BookingInfo, reason?: string | null): string {
   const clinic = info.clinicName || APP_NAME;
   const lines = [
     `❌ *Booking Dibatalkan*`,
@@ -163,19 +184,8 @@ function buildBookingCancelledMessage(
     `• Tanggal: ${formatDate(info.date)}`,
     `• Jam: ${info.startTime}`,
   ];
-
-  if (reason) {
-    lines.push(``, `📝 *Alasan:* ${reason}`);
-  }
-
-  lines.push(
-    ``,
-    `Silakan lakukan booking ulang untuk jadwal lain.`,
-    ``,
-    `Mohon maaf atas ketidaknyamanannya. 🙏`,
-    `— ${clinic}`
-  );
-
+  if (reason) lines.push(``, `📝 *Alasan:* ${reason}`);
+  lines.push(``, `Silakan lakukan booking ulang.`, ``, `Mohon maaf. 🙏`, `— ${clinic}`);
   return lines.join("\n");
 }
 
@@ -183,24 +193,26 @@ function buildBookingCancelledMessage(
 // Public API — Fire-and-Forget Notification Senders
 // ============================================================
 
-/** Send "Booking Received" notification (called after customer books) */
 export function notifyBookingReceived(info: BookingInfo): void {
   const message = buildBookingReceivedMessage(info);
-  // Fire and forget — don't await
-  sendWhatsApp(info.patientPhone, message).catch(() => {});
+  (async () => {
+    const config = await getConfig(info.organizationId);
+    sendWhatsApp(info.patientPhone, message, config).catch(() => {});
+  })();
 }
 
-/** Send "Booking Confirmed" notification (called by admin) */
 export function notifyBookingConfirmed(info: BookingInfo): void {
   const message = buildBookingConfirmedMessage(info);
-  sendWhatsApp(info.patientPhone, message).catch(() => {});
+  (async () => {
+    const config = await getConfig(info.organizationId);
+    sendWhatsApp(info.patientPhone, message, config).catch(() => {});
+  })();
 }
 
-/** Send "Booking Cancelled" notification (called by admin) */
-export function notifyBookingCancelled(
-  info: BookingInfo,
-  reason?: string | null
-): void {
+export function notifyBookingCancelled(info: BookingInfo, reason?: string | null): void {
   const message = buildBookingCancelledMessage(info, reason);
-  sendWhatsApp(info.patientPhone, message).catch(() => {});
+  (async () => {
+    const config = await getConfig(info.organizationId);
+    sendWhatsApp(info.patientPhone, message, config).catch(() => {});
+  })();
 }

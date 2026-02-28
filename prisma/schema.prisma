@@ -19,6 +19,21 @@ model Organization {
   name      String
   slug      String   @unique  // URL-friendly: "barbershop-jaya"
   logoUrl   String?  @map("logo_url")
+
+  // Integration: MultiWA (WhatsApp Gateway)
+  multiwaUrl       String?  @map("multiwa_url")
+  multiwaApiKey    String?  @map("multiwa_api_key")
+  multiwaSessionId String?  @map("multiwa_session_id")
+
+  // Integration: Google Calendar OAuth
+  gcalClientId     String?  @map("gcal_client_id")
+  gcalClientSecret String?  @map("gcal_client_secret")
+
+  // Integration: Midtrans Payment Gateway
+  midtransServerKey  String?  @map("midtrans_server_key")
+  midtransClientKey  String?  @map("midtrans_client_key")
+  midtransIsProd     Boolean  @default(false) @map("midtrans_is_prod")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -82,6 +97,7 @@ model ServiceType {
   dpPercentage  Int     @default(0) @map("dp_percentage") // Persentase DP (0-100). 0 = bayar penuh
   description   String?
   isActive      Boolean @default(true) @map("is_active")
+  isVirtual     Boolean @default(false) @map("is_virtual") // Konsultasi online → auto Google Meet
   color         String? // Warna hex untuk kalender UI
 
   // Relations
@@ -156,6 +172,9 @@ model Booking {
 
   // Metadata
   cancelReason    String?       @map("cancel_reason")
+  managementToken String        @unique @default(uuid()) @map("management_token")
+  meetingUrl      String?       @map("meeting_url")
+  rescheduleCount Int           @default(0) @map("reschedule_count")
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
@@ -165,8 +184,9 @@ model Booking {
   serviceTypeId String      @map("service_type_id")
   serviceType   ServiceType @relation(fields: [serviceTypeId], references: [id])
 
-  // CONSTRAINT KRITIS: Mencegah double-booking di level database
-  @@unique([userId, startTime])
+  // Double-booking dicegah di level aplikasi (Lapis 2 di createBookingAction)
+  // dengan filter status ['PENDING', 'CONFIRMED'] — bukan di level DB constraint,
+  // karena slot dari booking CANCELLED harus bisa dipakai kembali.
   @@index([userId, date, status])
   @@map("bookings")
 }

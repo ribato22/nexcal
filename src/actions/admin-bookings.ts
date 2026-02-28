@@ -139,13 +139,21 @@ export async function updateBookingStatus(
     const booking = await prisma.booking.findFirst({
       where: { id: bookingId, ...scope.userFilter },
       include: {
-        serviceType: { select: { name: true, duration: true } },
-        user: { select: { clinicName: true } },
+        serviceType: { select: { name: true, duration: true, isVirtual: true } },
+        user: { select: { clinicName: true, organizationId: true } },
       },
     });
 
     if (!booking) {
       return { success: false, error: "Reservasi tidak ditemukan." };
+    }
+
+    // Payment guard: prevent confirming unpaid bookings
+    if (status === "CONFIRMED" && booking.totalPrice > 0 && booking.paymentStatus !== "PAID") {
+      return {
+        success: false,
+        error: "Reservasi berbayar harus lunas sebelum dikonfirmasi! Gunakan 'Tandai Lunas' terlebih dahulu.",
+      };
     }
 
     // Update status
@@ -158,6 +166,9 @@ export async function updateBookingStatus(
     });
 
     // Fire-and-forget WhatsApp notification
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const manageUrl = `${appUrl}/booking/manage/${booking.managementToken}`;
+
     const notifInfo = {
       patientName: booking.patientName,
       patientPhone: booking.patientPhone,
@@ -166,21 +177,45 @@ export async function updateBookingStatus(
       startTime: format(booking.startTime, "HH:mm"),
       duration: booking.serviceType.duration,
       clinicName: booking.user.clinicName || undefined,
+      manageUrl,
     };
 
     if (status === "CONFIRMED") {
       notifyBookingConfirmed(notifInfo);
-      // Push to Google Calendar (fire-and-forget)
-      pushBookingToCalendar({
-        userId: booking.userId,
-        patientName: booking.patientName,
-        patientPhone: booking.patientPhone,
-        serviceName: booking.serviceType.name,
-        startTime: booking.startTime,
-        endTime: booking.endTime,
-        notes: booking.patientNotes,
-        clinicName: booking.user.clinicName,
-      });
+      // Push to provider's Google Calendar (with Meet link if virtual)
+      // MUST await so meetingUrl is saved to DB before response returns
+      try {
+        const meetUrl = await pushBookingToCalendar({
+          userId: booking.userId,
+          patientName: booking.patientName,
+          patientPhone: booking.patientPhone,
+          serviceName: booking.serviceType.name,
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+          notes: booking.patientNotes,
+          clinicName: booking.user.clinicName,
+          organizationId: booking.user.organizationId,
+          isVirtual: booking.serviceType.isVirtual,
+          bookingId: booking.id,
+        });
+        console.log(`[Admin] GCal push result for ${bookingId}: meetUrl=${meetUrl || "null"}`);
+      } catch (gcalErr) {
+        const errorMsg = gcalErr instanceof Error ? gcalErr.message : "Google Calendar error";
+        console.warn(`[Admin] GCal push failed for ${bookingId}:`, errorMsg);
+
+        // For virtual services, Meet link is REQUIRED — rollback confirmation
+        if (booking.serviceType.isVirtual) {
+          await prisma.booking.update({
+            where: { id: bookingId },
+            data: { status: "PENDING" },
+          });
+          return {
+            success: false,
+            error: `Konfirmasi dibatalkan karena link Google Meet gagal dibuat: ${errorMsg}`,
+          };
+        }
+        // Non-virtual: GCal failure is non-blocking, just log it
+      }
     } else if (status === "CANCELLED") {
       notifyBookingCancelled(notifInfo, cancelReason);
     }
@@ -188,6 +223,42 @@ export async function updateBookingStatus(
     revalidatePath("/admin/bookings");
     revalidatePath("/admin/dashboard");
 
+    return { success: true, error: null };
+  } catch {
+    return { success: false, error: "Terjadi kesalahan sistem." };
+  }
+}
+
+// ============================================================
+// markAsPaid — Admin marks booking as paid (cash at counter)
+// ============================================================
+
+export async function markAsPaidAction(bookingId: string): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const scope = await getDataScope();
+    if (!scope) return { success: false, error: "Unauthorized" };
+
+    const booking = await prisma.booking.findFirst({
+      where: { id: bookingId, ...scope.userFilter },
+      select: { id: true, paymentStatus: true, totalPrice: true },
+    });
+
+    if (!booking) return { success: false, error: "Reservasi tidak ditemukan." };
+
+    if (booking.paymentStatus === "PAID") {
+      return { success: false, error: "Reservasi sudah lunas." };
+    }
+
+    if (booking.totalPrice <= 0) {
+      return { success: false, error: "Reservasi ini gratis, tidak perlu ditandai lunas." };
+    }
+
+    await prisma.booking.update({
+      where: { id: bookingId },
+      data: { paymentStatus: "PAID" },
+    });
+
+    revalidatePath("/admin/bookings");
     return { success: true, error: null };
   } catch {
     return { success: false, error: "Terjadi kesalahan sistem." };

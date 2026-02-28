@@ -47,6 +47,7 @@ export interface BookingResult {
     patientName: string;
     paymentUrl?: string; // URL redirect ke gateway pembayaran
     totalPrice?: number;
+    manageUrl?: string;  // URL portal pasien (self-service)
   } | null;
 }
 
@@ -87,10 +88,10 @@ export async function createBookingAction(
       return { ...empty, error: "Layanan tidak ditemukan." };
     }
 
-    // Ambil nama klinik/bisnis dari pemilik
+    // Ambil nama klinik/bisnis dan orgId dari pemilik
     const owner = await prisma.user.findUnique({
       where: { id: service.userId },
-      select: { clinicName: true },
+      select: { clinicName: true, organizationId: true },
     });
 
     // Hitung waktu mulai dan selesai
@@ -190,9 +191,9 @@ export async function createBookingAction(
 
       // Jika layanan berbayar dan gateway dikonfigurasi → buat transaksi
       let paymentUrl: string | undefined;
-      if (isPaid && isPaymentEnabled()) {
+      if (isPaid && await isPaymentEnabled(owner?.organizationId)) {
         try {
-          const provider = getPaymentProvider();
+          const provider = getPaymentProvider(owner?.organizationId);
           const txResult = await provider.createTransaction({
             bookingId: booking.id,
             amount: paymentAmount,
@@ -221,6 +222,9 @@ export async function createBookingAction(
       }
 
       // Fire-and-forget WhatsApp notification
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const manageUrl = `${appUrl}/booking/manage/${booking.managementToken}`;
+
       notifyBookingReceived({
         patientName,
         patientPhone,
@@ -229,6 +233,7 @@ export async function createBookingAction(
         startTime: format(slotStart, "HH:mm"),
         duration: service.duration,
         clinicName: owner?.clinicName || undefined,
+        manageUrl,
       });
 
       return {
@@ -242,6 +247,7 @@ export async function createBookingAction(
           patientName,
           paymentUrl,
           totalPrice: isPaid ? paymentAmount : undefined,
+          manageUrl,
         },
       };
     } catch (dbError: unknown) {

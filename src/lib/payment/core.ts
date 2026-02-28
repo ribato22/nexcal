@@ -5,7 +5,12 @@
  * Stripe, dll) mengimplementasikan interface `PaymentProvider`.
  * Factory `getPaymentProvider()` mengembalikan instance yang tepat
  * berdasarkan nama gateway.
+ *
+ * Config diambil dari database (Organization) per-tenant, dengan
+ * fallback ke environment variables.
  */
+
+import { prisma } from "@/lib/prisma";
 
 // ============================================================
 // Interface
@@ -80,10 +85,11 @@ export interface PaymentProvider {
  * @throws Error jika gateway tidak didukung
  */
 export function getPaymentProvider(
+  organizationId?: string | null,
   gatewayName?: string
 ): PaymentProvider {
   const name = (
-    gatewayName || process.env.DEFAULT_PAYMENT_GATEWAY || ""
+    gatewayName || process.env.DEFAULT_PAYMENT_GATEWAY || "MIDTRANS"
   ).toUpperCase();
 
   switch (name) {
@@ -91,22 +97,18 @@ export function getPaymentProvider(
       // Lazy import untuk menghindari loading module yang tidak dipakai
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { MidtransProvider } = require("./midtrans");
-      return new MidtransProvider();
+      return new MidtransProvider(organizationId);
     }
 
     // Future plugins:
     // case "XENDIT":
     //   const { XenditProvider } = require("./xendit");
-    //   return new XenditProvider();
-    //
-    // case "STRIPE":
-    //   const { StripeProvider } = require("./stripe");
-    //   return new StripeProvider();
+    //   return new XenditProvider(organizationId);
 
     default:
       throw new Error(
         `Payment gateway "${name}" tidak didukung. ` +
-        `Atur DEFAULT_PAYMENT_GATEWAY di .env (nilai yang didukung: MIDTRANS).`
+        `Atur gateway di Pengaturan → Payment Gateway (didukung: MIDTRANS).`
       );
   }
 }
@@ -115,9 +117,19 @@ export function getPaymentProvider(
  * Cek apakah payment gateway sudah dikonfigurasi.
  * Berguna untuk menentukan apakah fitur pembayaran diaktifkan.
  */
-export function isPaymentEnabled(): boolean {
+export async function isPaymentEnabled(organizationId?: string | null): Promise<boolean> {
+  // Check DB config first
+  if (organizationId) {
+    const org = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { midtransServerKey: true },
+    });
+    if (org?.midtransServerKey) return true;
+  }
+  // Fallback to env
   const gateway = process.env.DEFAULT_PAYMENT_GATEWAY;
-  return !!gateway && gateway.trim().length > 0;
+  const serverKey = process.env.MIDTRANS_SERVER_KEY;
+  return (!!gateway && gateway.trim().length > 0) || !!serverKey;
 }
 
 /**

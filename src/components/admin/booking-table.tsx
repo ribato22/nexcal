@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { updateBookingStatus } from "@/actions/admin-bookings";
+import { updateBookingStatus, markAsPaidAction } from "@/actions/admin-bookings";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 
@@ -77,34 +77,64 @@ function PaymentBadge({ status, totalPrice }: { status: string; totalPrice: numb
 function ActionMenu({
   bookingId,
   currentStatus,
+  paymentStatus,
+  totalPrice,
 }: {
   bookingId: string;
   currentStatus: string;
+  paymentStatus: string;
+  totalPrice: number;
 }) {
   const [open, setOpen] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const handleAction = (status: string, reason?: string) => {
+    setActionError(null);
     startTransition(async () => {
       const fd = new FormData();
       fd.set("bookingId", bookingId);
       fd.set("status", status);
       if (reason) fd.set("cancelReason", reason);
-      await updateBookingStatus(fd);
+      const result = await updateBookingStatus(fd);
+      if (result && !result.success && result.error) {
+        setActionError(result.error);
+        return; // keep menu open so admin sees the error
+      }
       setOpen(false);
       setShowCancel(false);
       setCancelReason("");
     });
   };
 
+  const handleMarkAsPaid = () => {
+    setActionError(null);
+    startTransition(async () => {
+      const result = await markAsPaidAction(bookingId);
+      if (result && !result.success && result.error) {
+        setActionError(result.error);
+        return;
+      }
+      setOpen(false);
+    });
+  };
+
+  const needsPayment = totalPrice > 0 && paymentStatus !== "PAID";
+
   // Tentukan aksi yang tersedia berdasarkan status saat ini
-  const actions: { label: string; status: string; icon: string; className: string }[] = [];
+  const actions: { label: string; status: string; icon: string; className: string; handler?: () => void }[] = [];
 
   if (currentStatus === "PENDING") {
+    if (needsPayment) {
+      // Unpaid: show "Mark as Paid" first, then allow confirm
+      actions.push(
+        { label: "Tandai Lunas (Bayar Kasir)", status: "MARK_PAID", icon: "💳", className: "text-emerald-700 hover:bg-emerald-50", handler: handleMarkAsPaid },
+      );
+    }
     actions.push(
-      { label: "Konfirmasi", status: "CONFIRMED", icon: "✅", className: "text-green-700 hover:bg-green-50" },
+      { label: "Konfirmasi", status: "CONFIRMED", icon: "✅", className: needsPayment ? "text-slate-400 cursor-not-allowed opacity-50" : "text-green-700 hover:bg-green-50" },
       { label: "Batalkan", status: "CANCEL_PROMPT", icon: "❌", className: "text-red-700 hover:bg-red-50" },
     );
   }
@@ -122,7 +152,7 @@ function ActionMenu({
     <div className="relative">
       <button
         type="button"
-        onClick={() => { setOpen(!open); setShowCancel(false); }}
+        onClick={() => { setOpen(!open); setShowCancel(false); setActionError(null); }}
         className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
       >
         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -133,9 +163,22 @@ function ActionMenu({
       {open && (
         <>
           {/* Backdrop */}
-          <div className="fixed inset-0 z-10" onClick={() => { setOpen(false); setShowCancel(false); }} />
+          <div className="fixed inset-0 z-10" onClick={() => { setOpen(false); setShowCancel(false); setActionError(null); }} />
 
-          <div className="absolute right-0 z-20 mt-1 w-56 rounded-xl border border-slate-200 bg-white shadow-xl">
+          <div className="absolute right-0 z-20 mt-1 w-64 rounded-xl border border-slate-200 bg-white shadow-xl">
+            {/* Error Banner */}
+            {actionError && (
+              <div className="border-b border-red-100 bg-red-50 p-3">
+                <p className="text-xs font-medium text-red-700">⚠️ {actionError}</p>
+                <button
+                  type="button"
+                  onClick={() => setActionError(null)}
+                  className="mt-1 text-xs text-red-500 underline hover:text-red-700"
+                >
+                  Tutup
+                </button>
+              </div>
+            )}
             {!showCancel ? (
               <div className="py-1">
                 {actions.map((action) => (
@@ -146,6 +189,11 @@ function ActionMenu({
                     onClick={() => {
                       if (action.status === "CANCEL_PROMPT") {
                         setShowCancel(true);
+                      } else if (action.handler) {
+                        action.handler();
+                      } else if (action.status === "CONFIRMED" && needsPayment) {
+                        // blocked — backend will also reject
+                        return;
                       } else {
                         handleAction(action.status);
                       }
@@ -225,7 +273,7 @@ export function BookingFilters({
           type="text"
           defaultValue={currentSearch}
           placeholder="Cari nama atau nomor WA..."
-          className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-700 outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+          className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-700 outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-500 dark:focus:ring-blue-900/30"
         />
       </div>
 
@@ -233,7 +281,7 @@ export function BookingFilters({
       <select
         name="status"
         defaultValue={currentStatus}
-        className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+        className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
       >
         {statuses.map((s) => (
           <option key={s.value} value={s.value}>
@@ -244,7 +292,7 @@ export function BookingFilters({
 
       <button
         type="submit"
-        className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800 transition-colors"
+        className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800 transition-colors dark:bg-slate-700 dark:hover:bg-slate-600"
       >
         Filter
       </button>
@@ -379,7 +427,7 @@ export function BookingTable({ bookings, isOwner = false }: { bookings: BookingR
                 <PaymentBadge status={b.paymentStatus} totalPrice={b.totalPrice} />
               </td>
               <td className="px-5 py-4 text-right">
-                <ActionMenu bookingId={b.id} currentStatus={b.status} />
+                <ActionMenu bookingId={b.id} currentStatus={b.status} paymentStatus={b.paymentStatus} totalPrice={b.totalPrice} />
               </td>
             </tr>
           ))}
@@ -399,7 +447,7 @@ export function BookingTable({ bookings, isOwner = false }: { bookings: BookingR
               </div>
               <div className="flex items-center gap-2">
                 <StatusBadge status={b.status} />
-                <ActionMenu bookingId={b.id} currentStatus={b.status} />
+                <ActionMenu bookingId={b.id} currentStatus={b.status} paymentStatus={b.paymentStatus} totalPrice={b.totalPrice} />
               </div>
             </div>
             <div className="mt-2 flex items-center gap-3 text-xs text-slate-600 dark:text-slate-400">

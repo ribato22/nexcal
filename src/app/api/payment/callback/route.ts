@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { notifyBookingConfirmed } from "@/lib/whatsapp";
+import { pushBookingToCalendar } from "@/lib/gcal";
 import { format } from "date-fns";
 
 /**
@@ -8,6 +9,7 @@ import { format } from "date-fns";
  *
  * Menerima notifikasi HTTP POST dari payment gateway (Midtrans, dll).
  * Memvalidasi status transaksi dan mengupdate paymentStatus di booking.
+ * On PAID: auto-confirm, push to GCal (with Meet), send WhatsApp.
  *
  * Midtrans notification format:
  * {
@@ -37,21 +39,24 @@ export async function POST(request: NextRequest) {
     // Extract booking ID from order_id (format: "NEXCAL-{bookingId}")
     const bookingId = orderId.replace(/^NEXCAL-/, "");
 
-    // Find the booking
+    // Find the booking with all details needed for GCal + WA
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
       select: {
         id: true,
+        userId: true,
         paymentStatus: true,
         paymentGateway: true,
         patientName: true,
         patientPhone: true,
+        patientNotes: true,
         date: true,
         startTime: true,
         endTime: true,
         totalPrice: true,
-        serviceType: { select: { name: true, duration: true } },
-        user: { select: { clinicName: true } },
+        managementToken: true,
+        serviceType: { select: { name: true, duration: true, isVirtual: true } },
+        user: { select: { clinicName: true, organizationId: true } },
       },
     });
 
@@ -97,7 +102,7 @@ export async function POST(request: NextRequest) {
       `[Webhook] Booking ${bookingId}: ${booking.paymentStatus} → ${newPaymentStatus} (gateway: ${transactionStatus})`
     );
 
-    // If payment confirmed → also confirm booking + send WhatsApp
+    // If payment confirmed → auto-confirm booking + GCal + WhatsApp
     if (newPaymentStatus === "PAID") {
       // Auto-confirm booking when payment is received
       await prisma.booking.update({
@@ -105,7 +110,28 @@ export async function POST(request: NextRequest) {
         data: { status: "CONFIRMED" },
       });
 
-      // Fire-and-forget WhatsApp notification
+      // Build management URL for patient portal
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const manageUrl = `${appUrl}/booking/manage/${booking.managementToken}`;
+
+      // Push to Google Calendar (with Meet link for virtual services)
+      pushBookingToCalendar({
+        userId: booking.userId,
+        patientName: booking.patientName,
+        patientPhone: booking.patientPhone,
+        serviceName: booking.serviceType.name,
+        startTime: booking.startTime,
+        endTime: booking.endTime,
+        notes: booking.patientNotes,
+        clinicName: booking.user?.clinicName,
+        organizationId: booking.user?.organizationId,
+        isVirtual: booking.serviceType.isVirtual,
+        bookingId: booking.id,
+      }).catch((err) => {
+        console.warn(`[Webhook] GCal push failed (non-blocking):`, err);
+      });
+
+      // Fire-and-forget WhatsApp notification (with manageUrl)
       Promise.resolve(
         notifyBookingConfirmed({
           patientName: booking.patientName,
@@ -115,6 +141,7 @@ export async function POST(request: NextRequest) {
           startTime: format(new Date(booking.startTime), "HH:mm"),
           duration: booking.serviceType.duration,
           clinicName: booking.user?.clinicName || undefined,
+          manageUrl,
         })
       ).catch(() => {});
 

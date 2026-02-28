@@ -49,8 +49,8 @@ export function GCalCard({ connected, configured }: GCalCardProps) {
 
       {!configured ? (
         <p className="text-xs text-slate-400 dark:text-slate-500">
-          Belum dikonfigurasi. Tambahkan <code className="rounded bg-slate-100 px-1 py-0.5 text-[11px] dark:bg-slate-800">GOOGLE_CLIENT_ID</code> dan{" "}
-          <code className="rounded bg-slate-100 px-1 py-0.5 text-[11px] dark:bg-slate-800">GOOGLE_CLIENT_SECRET</code> di file .env
+          Belum dikonfigurasi. Minta Owner mengisi <strong>Google Client ID</strong> dan{" "}
+          <strong>Client Secret</strong> di halaman <strong>Pengaturan → Integrasi Organisasi</strong>.
         </p>
       ) : connected ? (
         <div className="flex items-center justify-between">

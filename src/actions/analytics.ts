@@ -104,22 +104,24 @@ export async function getAnalytics(): Promise<AnalyticsDashboard> {
     trendBookings,
     providerBookings,
   ] = await Promise.all([
-    // Revenue: bulan ini (only PAID)
+    // Revenue: bulan ini (PAID + non-cancelled/no-show)
     prisma.booking.aggregate({
       where: {
         ...baseFilter,
         paymentStatus: "PAID",
+        status: { in: ["PENDING", "CONFIRMED", "COMPLETED"] },
         date: { gte: currentMonthStart, lte: currentMonthEnd },
       },
       _sum: { totalPrice: true },
       _count: true,
     }),
 
-    // Revenue: bulan lalu (only PAID)
+    // Revenue: bulan lalu (PAID + non-cancelled/no-show)
     prisma.booking.aggregate({
       where: {
         ...baseFilter,
         paymentStatus: "PAID",
+        status: { in: ["PENDING", "CONFIRMED", "COMPLETED"] },
         date: { gte: prevMonthStart, lte: prevMonthEnd },
       },
       _sum: { totalPrice: true },
@@ -150,13 +152,13 @@ export async function getAnalytics(): Promise<AnalyticsDashboard> {
       where: { ...baseFilter, status: "NO_SHOW" },
     }),
 
-    // Top services: booking count + revenue (bulan ini)
+    // Top services: booking count + revenue (bulan ini, exclude CANCELLED/NO_SHOW)
     prisma.booking.groupBy({
       by: ["serviceTypeId"],
       where: {
         ...baseFilter,
         date: { gte: currentMonthStart, lte: currentMonthEnd },
-        status: { notIn: ["CANCELLED"] },
+        status: { in: ["PENDING", "CONFIRMED", "COMPLETED"] },
       },
       _count: true,
       _sum: { totalPrice: true },
@@ -178,13 +180,13 @@ export async function getAnalytics(): Promise<AnalyticsDashboard> {
       },
     }),
 
-    // Provider performance (Owner only — for Staff this returns self only)
+    // Provider performance (Owner only, exclude CANCELLED/NO_SHOW)
     prisma.booking.groupBy({
       by: ["userId"],
       where: {
         ...baseFilter,
         date: { gte: currentMonthStart, lte: currentMonthEnd },
-        status: { notIn: ["CANCELLED"] },
+        status: { in: ["PENDING", "CONFIRMED", "COMPLETED"] },
       },
       _count: true,
       _sum: { totalPrice: true },
@@ -251,27 +253,51 @@ export async function getAnalytics(): Promise<AnalyticsDashboard> {
     .sort((a: ProviderPerformance, b: ProviderPerformance) => b.revenue - a.revenue);
 
   // ---------- Process Daily Trend ----------
-  const trendMap = new Map<string, { bookings: number; revenue: number }>();
-  for (let i = 0; i < 30; i++) {
-    const d = format(subDays(now, 29 - i), "yyyy-MM-dd");
-    trendMap.set(d, { bookings: 0, revenue: 0 });
+  // Use local date components (getFullYear/getMonth/getDate) to avoid
+  // UTC vs local timezone mismatch that causes key collisions.
+  function toLocalDateKey(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
   }
 
+  const trendMap = new Map<string, { bookings: number; revenue: number }>();
+  for (let i = 0; i < 30; i++) {
+    const d = subDays(now, 29 - i);
+    const key = toLocalDateKey(d);
+    trendMap.set(key, { bookings: 0, revenue: 0 });
+  }
+
+  let matchedCount = 0;
   for (const b of trendBookings) {
-    const key = format(new Date(b.date), "yyyy-MM-dd");
+    const bDate = new Date(b.date);
+    const key = toLocalDateKey(bDate);
     const entry = trendMap.get(key);
     if (entry) {
       entry.bookings += 1;
+      matchedCount++;
       if (b.paymentStatus === "PAID") {
         entry.revenue += b.totalPrice;
       }
     }
   }
 
+  // Debug: log trend data to terminal
+  console.log(`[Analytics] Trend: ${trendBookings.length} bookings queried, ${matchedCount} matched to 30-day window`);
+  if (trendBookings.length > 0 && matchedCount === 0) {
+    const sample = trendBookings[0];
+    const sampleDate = new Date(sample.date);
+    console.log(`[Analytics] Sample booking date raw:`, sample.date);
+    console.log(`[Analytics] Sample as Date:`, sampleDate.toString());
+    console.log(`[Analytics] Sample local key:`, toLocalDateKey(sampleDate));
+    console.log(`[Analytics] TrendMap keys (first 5):`, [...trendMap.keys()].slice(0, 5));
+  }
+
   const dailyTrend: DailyTrend[] = Array.from(trendMap.entries()).map(
     ([dateStr, data]) => ({
       date: dateStr,
-      label: format(new Date(dateStr), "dd MMM"),
+      label: format(new Date(dateStr + "T12:00:00"), "dd MMM"),
       bookings: data.bookings,
       revenue: data.revenue,
     })

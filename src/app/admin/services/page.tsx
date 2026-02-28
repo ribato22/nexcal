@@ -1,15 +1,18 @@
 import { prisma } from "@/lib/prisma";
 import { getDataScope } from "@/lib/rbac";
 import { auth } from "@/lib/auth";
-import { AddServiceButton } from "@/components/admin/service-form";
+import { AddServiceButton, ServiceCardActions } from "@/components/admin/service-form";
 
 interface ServiceWithProvider {
   id: string;
   name: string;
   duration: number;
   bufferTime: number;
+  price: number;
+  dpPercentage: number;
   description: string | null;
   isActive: boolean;
+  isVirtual: boolean;
   color: string | null;
   user?: { name: string };
 }
@@ -27,8 +30,11 @@ export default async function ServicesPage() {
       name: true,
       duration: true,
       bufferTime: true,
+      price: true,
+      dpPercentage: true,
       description: true,
       isActive: true,
+      isVirtual: true,
       color: true,
       ...(isOwner ? { user: { select: { name: true } } } : {}),
     },
@@ -60,7 +66,7 @@ export default async function ServicesPage() {
             </svg>
           </div>
           <p className="mt-4 text-sm font-medium text-slate-900 dark:text-white">Belum ada layanan</p>
-          <p className="mt-1 text-xs text-slate-500">Jalankan `npm run db:seed` untuk membuat data demo.</p>
+          <p className="mt-1 text-xs text-slate-500">Klik "Tambah Layanan" untuk memulai.</p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -84,6 +90,10 @@ function ServiceCard({
     ? `${Math.floor(service.duration / 60)} jam${service.duration % 60 > 0 ? ` ${service.duration % 60} menit` : ""}`
     : `${service.duration} menit`;
 
+  const priceLabel = service.price > 0
+    ? `Rp ${service.price.toLocaleString("id-ID")}`
+    : "Gratis";
+
   return (
     <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
       {/* Color accent */}
@@ -100,13 +110,23 @@ function ServiceCard({
             </h3>
           </div>
 
+          {/* Price */}
+          <p className="mt-1 text-sm font-medium text-blue-600 dark:text-blue-400">
+            {priceLabel}
+            {service.dpPercentage > 0 && (
+              <span className="ml-1 text-xs text-slate-500 dark:text-slate-400">
+                (DP {service.dpPercentage}%)
+              </span>
+            )}
+          </p>
+
           {service.description && (
             <p className="mt-2 line-clamp-2 text-sm text-slate-500 dark:text-slate-400">
               {service.description}
             </p>
           )}
 
-          <div className="mt-4 flex items-center gap-3">
+          <div className="mt-4 flex flex-wrap items-center gap-2">
             {/* Duration badge */}
             <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -118,9 +138,6 @@ function ServiceCard({
             {/* Buffer time badge */}
             {service.bufferTime > 0 && (
               <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 dark:bg-amber-950/30 dark:text-amber-400">
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
-                </svg>
                 Jeda {service.bufferTime} mnt
               </span>
             )}
@@ -139,20 +156,25 @@ function ServiceCard({
             {/* Provider badge (OWNER only) */}
             {isOwner && service.user?.name && (
               <span className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/30 dark:text-blue-400">
-                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-                </svg>
                 {service.user.name}
               </span>
             )}
           </div>
         </div>
 
-        {/* Color indicator */}
-        <div
-          className="h-4 w-4 shrink-0 rounded-full ring-2 ring-white shadow-sm dark:ring-slate-900"
-          style={{ backgroundColor: service.color || "#6366f1" }}
-        />
+        {/* Action menu (⋯) */}
+        <ServiceCardActions service={{
+          id: service.id,
+          name: service.name,
+          duration: service.duration,
+          bufferTime: service.bufferTime,
+          price: service.price,
+          dpPercentage: service.dpPercentage,
+          description: service.description,
+          isActive: service.isActive,
+          isVirtual: service.isVirtual,
+          color: service.color,
+        }} />
       </div>
     </div>
   );
