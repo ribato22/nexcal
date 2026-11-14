@@ -28,13 +28,13 @@ I've been building **NexCal** — a self-hosted booking/appointment system for b
 
 ⏱️ **Smart scheduling** — Dual-layer buffer times prevent back-to-back burnout. A 30-minute consultation with 10-minute buffer blocks 10:00–10:40, not just 10:00–10:30.
 
-🛡️ **3-layer anti double-booking** — Zod validation → slot re-check → PostgreSQL unique constraint. Even millisecond-simultaneous submissions can't create conflicts.
+🛡️ **3-layer anti double-booking** — Zod validation → slot re-check → PostgreSQL protection against overlapping active bookings.
 
 📢 **WhatsApp notifications** — Optional integration with MultiWA (another open-source project of mine) for automated booking reminders and payment receipts.
 
 **Tech stack:** Next.js 16, TypeScript, Prisma 7, PostgreSQL, Tailwind CSS 4, Docker.
 
-**Self-hosting:** `docker compose up` and you're live. Auto-migrations, demo seed data included.
+**Self-hosting:** Follow the Docker quick start for automatic migrations and optional demo data.
 
 GitHub: https://github.com/ribato22/nexcal
 
@@ -99,7 +99,7 @@ Anti double-booking? 3 independent layers:
 
 Layer 1: Zod schema validation
 Layer 2: Real-time slot re-check before insert
-Layer 3: PostgreSQL unique constraint
+Layer 3: PostgreSQL exclusion constraint for overlapping active bookings
 
 Even if 2 customers submit at the EXACT same millisecond — the database catches it.
 

@@ -105,10 +105,13 @@ export async function POST(request: NextRequest) {
     // If payment confirmed → auto-confirm booking + GCal + WhatsApp
     if (newPaymentStatus === "PAID") {
       // Auto-confirm booking when payment is received
-      await prisma.booking.update({
-        where: { id: bookingId },
+      const confirmation = await prisma.booking.updateMany({
+        where: { id: bookingId, status: "PENDING" },
         data: { status: "CONFIRMED" },
       });
+      if (confirmation.count === 0) {
+        return NextResponse.json({ status: "payment_recorded" });
+      }
 
       // Build management URL for patient portal
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";

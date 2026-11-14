@@ -10,6 +10,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { isBookingSlotConflict } from "@/lib/booking-conflict";
 import { getAvailableSlots, ScheduleSession, DateOverrideData, ExistingBooking } from "@/lib/slots";
 import { parse, startOfDay, addMinutes } from "date-fns";
 import { revalidatePath } from "next/cache";
@@ -236,8 +237,13 @@ export async function rescheduleBookingByPatient(
         rescheduleCount: { increment: 1 },
       },
     });
-  } catch {
-    return { success: false, error: "Slot ini baru saja dipesan oleh orang lain." };
+  } catch (error) {
+    return {
+      success: false,
+      error: isBookingSlotConflict(error)
+        ? "Slot ini baru saja dipesan oleh orang lain."
+        : "Terjadi kesalahan sistem. Silakan coba lagi.",
+    };
   }
 
   revalidatePath(`/booking/manage/${token}`);
