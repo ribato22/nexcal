@@ -11,6 +11,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { isBookingSlotConflict } from "@/lib/booking-conflict";
+import { CalendarFeedError, getCalendarBusyPeriods } from "@/lib/calendar-feed";
 import { getAvailableSlots, ScheduleSession, DateOverrideData, ExistingBooking } from "@/lib/slots";
 import { parse, startOfDay, addMinutes } from "date-fns";
 import { revalidatePath } from "next/cache";
@@ -163,6 +164,7 @@ export async function rescheduleBookingByPatient(
   const refDate = startOfDay(parse(newDate, "yyyy-MM-dd", new Date()));
   const slotStart = parse(`${newDate} ${newTime}`, "yyyy-MM-dd HH:mm", new Date());
   const slotEnd = addMinutes(slotStart, booking.serviceType.duration);
+  if (!Number.isFinite(+slotStart)) return { success: false, error: "Tanggal atau waktu tidak valid." };
 
   // Verify new slot is in the future (>= 24h from now)
   const now = new Date();
@@ -173,11 +175,23 @@ export async function rescheduleBookingByPatient(
   // Get the provider's userId from the booking
   const fullBooking = await prisma.booking.findUnique({
     where: { managementToken: token },
-    select: { id: true, userId: true },
+    select: {
+      id: true, userId: true,
+      user: { select: { calendarFeedUrl: true } },
+      serviceType: { select: { bufferTime: true } },
+    },
   });
   if (!fullBooking) return { success: false, error: "Booking tidak ditemukan." };
 
   const dayOfWeek = refDate.getDay();
+  const buffer = fullBooking.serviceType.bufferTime;
+  let calendarBusy: ExistingBooking[];
+  try {
+    calendarBusy = await getCalendarBusyPeriods(fullBooking.user.calendarFeedUrl, refDate, buffer, true);
+  } catch (error) {
+    if (error instanceof CalendarFeedError) return { success: false, error: error.message };
+    throw error;
+  }
 
   // Get schedules, overrides, and existing bookings for the new date
   const [userSchedules, dateOverrides, existingBookings] = await Promise.all([
@@ -196,7 +210,7 @@ export async function rescheduleBookingByPatient(
         status: { in: ["PENDING", "CONFIRMED"] },
         id: { not: fullBooking.id }, // Exclude current booking from conflict check
       },
-      select: { startTime: true, endTime: true },
+      select: { startTime: true, endTime: true, serviceType: { select: { bufferTime: true } } },
     }),
   ]);
 
@@ -217,9 +231,10 @@ export async function rescheduleBookingByPatient(
   const booked: ExistingBooking[] = existingBookings.map((b) => ({
     startTime: b.startTime,
     endTime: b.endTime,
+    bufferTime: b.serviceType.bufferTime,
   }));
 
-  const slots = getAvailableSlots(refDate, sessions, overrides, booked, booking.serviceType.duration, 0);
+  const slots = getAvailableSlots(refDate, sessions, overrides, [...booked, ...calendarBusy], booking.serviceType.duration, buffer);
   const isAvailable = slots.some((s) => s.startTime === newTime && s.available);
 
   if (!isAvailable) {

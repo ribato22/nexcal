@@ -401,8 +401,8 @@ function SlotPicker({
                 isSelected
                   ? "bg-blue-600 text-white shadow-md shadow-blue-200"
                   : slot.available
-                    ? "border border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50"
-                    : "cursor-not-allowed border border-slate-100 bg-slate-50 text-slate-300 line-through"
+                    ? "border border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:text-blue-900"
+                    : "cursor-not-allowed border border-slate-200 bg-white text-slate-500 line-through"
               }`}
             >
               {slot.startTime}
@@ -661,6 +661,8 @@ export function BookingWizard({ providers }: { providers: Provider[] }) {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [slots, setSlots] = useState<TimeSlot[]>([]);
+  const [slotError, setSlotError] = useState<string | null>(null);
+  const [slotRetry, setSlotRetry] = useState(0);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
@@ -696,17 +698,19 @@ export function BookingWizard({ providers }: { providers: Provider[] }) {
     Promise.resolve().then(() => {
       if (!cancelled) {
         setLoadingSlots(true);
+        setSlotError(null);
         setSelectedTime(null);
       }
     });
     getAvailableSlotsAction(dateStr, selectedService).then((result) => {
       if (!cancelled) {
         setSlots(result.slots);
+        setSlotError(result.error);
         setLoadingSlots(false);
       }
     });
     return () => { cancelled = true; };
-  }, [selectedService, selectedDate]);
+  }, [selectedService, selectedDate, slotRetry]);
 
   // Step tracking — offset by 1 if multi-provider (step 0 = provider)
   const stepOffset = hasMultipleProviders ? 1 : 0;
@@ -835,12 +839,16 @@ export function BookingWizard({ providers }: { providers: Provider[] }) {
                 <p className="mb-4 text-sm text-slate-500">
                   Pilih salah satu slot yang tersedia.
                 </p>
-                <SlotPicker
-                  slots={slots}
-                  selected={selectedTime}
-                  onSelect={setSelectedTime}
-                  loading={loadingSlots}
-                />
+                {slotError ? (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    <p role="alert">{slotError}</p>
+                    <button type="button" onClick={() => setSlotRetry((count) => count + 1)} className="mt-2 font-semibold underline">
+                      Coba lagi
+                    </button>
+                  </div>
+                ) : (
+                  <SlotPicker slots={slots} selected={selectedTime} onSelect={setSelectedTime} loading={loadingSlots} />
+                )}
               </div>
             )}
 

@@ -2,8 +2,9 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getGCalStatus } from "@/actions/gcal";
 import { getOrgSettings } from "@/actions/settings";
+import { prisma } from "@/lib/prisma";
 import { GCalCard } from "@/components/admin/gcal-card";
-import { MultiwaSettingsForm, GcalSettingsForm, MidtransSettingsForm } from "@/components/admin/settings-forms";
+import { CalendarFeedForm, MultiwaSettingsForm, GcalSettingsForm, MidtransSettingsForm } from "@/components/admin/settings-forms";
 
 export default async function SettingsPage({
   searchParams,
@@ -11,15 +12,16 @@ export default async function SettingsPage({
   searchParams: Promise<{ gcal?: string }>;
 }) {
   const session = await auth();
-  if (!session?.user) redirect("/login");
+  if (!session?.user?.id) redirect("/login");
 
   const params = await searchParams;
   const isOwner = session.user.role === "OWNER";
 
   // Fetch org settings (OWNER only) + GCal OAuth status (ALL roles)
-  const [orgSettings, gcalStatus] = await Promise.all([
+  const [orgSettings, gcalStatus, user] = await Promise.all([
     isOwner ? getOrgSettings() : null,
     getGCalStatus(),
+    prisma.user.findUnique({ where: { id: session.user.id }, select: { calendarFeedUrl: true } }),
   ]);
 
   return (
@@ -63,6 +65,7 @@ export default async function SettingsPage({
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <GCalCard connected={gcalStatus.connected} configured={gcalStatus.configured} />
+          <CalendarFeedForm connected={Boolean(user?.calendarFeedUrl)} />
         </div>
       </div>
 
