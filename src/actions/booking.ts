@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { isBookingSlotConflict } from "@/lib/booking-conflict";
 import { z } from "zod";
 import { getAvailableSlots, ScheduleSession, DateOverrideData, ExistingBooking } from "@/lib/slots";
 import { parse, startOfDay, addMinutes, format } from "date-fns";
@@ -33,7 +34,7 @@ const bookingSchema = z.object({
 // Anti Double-Booking 3 Lapis:
 // 1. Validasi Zod
 // 2. Re-check slot availability
-// 3. DB unique constraint catch (P2002)
+// 3. PostgreSQL exclusion constraint
 // ============================================================
 
 export interface BookingResult {
@@ -251,13 +252,7 @@ export async function createBookingAction(
         },
       };
     } catch (dbError: unknown) {
-      // Tangkap unique constraint violation (race condition)
-      const isPrismaUniqueError =
-        dbError instanceof Error &&
-        "code" in dbError &&
-        (dbError as { code: string }).code === "P2002";
-
-      if (isPrismaUniqueError) {
+      if (isBookingSlotConflict(dbError)) {
         return {
           ...empty,
           error: "Slot ini baru saja dipesan oleh orang lain. Silakan pilih waktu lain.",

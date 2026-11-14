@@ -7,6 +7,11 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
+  const seedPassword = process.env.SEED_PASSWORD?.trim();
+  if (!seedPassword || seedPassword === "changeme123" || seedPassword === "<YOUR_LOCAL_SEED_PASSWORD>") {
+    throw new Error("Set a custom SEED_PASSWORD before seeding demo data.");
+  }
+
   console.log("🌱 Seeding NexCal v2.0 (Multi-Provider)...\n");
 
   // ============================================================
@@ -25,7 +30,6 @@ async function main() {
   // ============================================================
   // 2. Users: 1 OWNER + 2 STAFF
   // ============================================================
-  const seedPassword = process.env.SEED_PASSWORD || "changeme123";
   const hashedPassword = await hash(seedPassword, 12);
 
   const owner = await prisma.user.upsert({
@@ -400,7 +404,7 @@ async function main() {
       });
       historicalCount++;
     } catch {
-      // Skip if unique constraint conflict (same userId+startTime)
+      // Random demo bookings may overlap and be rejected.
     }
   }
 
@@ -415,7 +419,6 @@ async function main() {
   console.log("OWNER:  admin@kliniku.com       / <SEED_PASSWORD>");
   console.log("STAFF:  dr.budi@kliniku.com     / <SEED_PASSWORD>");
   console.log("STAFF:  bidan.sari@kliniku.com  / <SEED_PASSWORD>");
-  console.log(`(password = $SEED_PASSWORD env var, default: changeme123)`);
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 }
 

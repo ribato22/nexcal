@@ -184,9 +184,7 @@ model Booking {
   serviceTypeId String      @map("service_type_id")
   serviceType   ServiceType @relation(fields: [serviceTypeId], references: [id])
 
-  // Double-booking dicegah di level aplikasi (Lapis 2 di createBookingAction)
-  // dengan filter status ['PENDING', 'CONFIRMED'] — bukan di level DB constraint,
-  // karena slot dari booking CANCELLED harus bisa dipakai kembali.
+  // The SQL migration excludes overlapping PENDING and CONFIRMED bookings per provider.
   @@index([userId, date, status])
   @@map("bookings")
 }
