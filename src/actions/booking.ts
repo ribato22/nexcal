@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { isBookingSlotConflict } from "@/lib/booking-conflict";
+import { CalendarFeedError, getCalendarBusyPeriods } from "@/lib/calendar-feed";
 import { z } from "zod";
 import { getAvailableSlots, ScheduleSession, DateOverrideData, ExistingBooking } from "@/lib/slots";
 import { parse, startOfDay, addMinutes, format } from "date-fns";
@@ -92,19 +93,20 @@ export async function createBookingAction(
     // Ambil nama klinik/bisnis dan orgId dari pemilik
     const owner = await prisma.user.findUnique({
       where: { id: service.userId },
-      select: { clinicName: true, organizationId: true },
+      select: { clinicName: true, organizationId: true, calendarFeedUrl: true },
     });
 
     // Hitung waktu mulai dan selesai
-    const targetDate = new Date(date);
+    const targetDate = parse(date, "yyyy-MM-dd", new Date());
     const refDate = startOfDay(targetDate);
     const slotStart = parse(startTime, "HH:mm", refDate);
     const slotEnd = addMinutes(slotStart, service.duration);
+    if (!Number.isFinite(+slotStart)) return { ...empty, error: "Tanggal atau waktu tidak valid." };
 
     // ============================================
     // LAPIS 2: Re-check slot sebelum insert
     // ============================================
-    const [schedules, overrides, bookings] = await Promise.all([
+    const [schedules, overrides, bookings, calendarBusy] = await Promise.all([
       prisma.schedule.findMany({
         where: { userId: service.userId, isActive: true },
         select: { dayOfWeek: true, startTime: true, endTime: true },
@@ -121,6 +123,7 @@ export async function createBookingAction(
         },
         select: { startTime: true, endTime: true, serviceType: { select: { bufferTime: true } } },
       }),
+      getCalendarBusyPeriods(owner?.calendarFeedUrl, targetDate, service.bufferTime, true),
     ]);
 
     const scheduleSessions: ScheduleSession[] = schedules.map((s: { dayOfWeek: number; startTime: string; endTime: string }) => ({
@@ -146,7 +149,7 @@ export async function createBookingAction(
       targetDate,
       scheduleSessions,
       dateOverrides,
-      existingBookings,
+      [...existingBookings, ...calendarBusy],
       service.duration,
       service.bufferTime
     );
@@ -260,10 +263,10 @@ export async function createBookingAction(
       }
       throw dbError; // Re-throw unexpected errors
     }
-  } catch {
+  } catch (error) {
     return {
       ...empty,
-      error: "Terjadi kesalahan sistem. Silakan coba lagi.",
+      error: error instanceof CalendarFeedError ? error.message : "Terjadi kesalahan sistem. Silakan coba lagi.",
     };
   }
 }

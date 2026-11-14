@@ -210,6 +210,8 @@ Use the `SEED_PASSWORD` you set for these demo accounts.
 
 ### Local Development
 
+Use Node.js 22 or later.
+
 ```bash
 # Start PostgreSQL
 docker compose up -d
@@ -226,6 +228,12 @@ npm run dev
 ```
 
 Run `sh tests/docker-smoke.sh` to verify startup, demo seeding, legacy booking migration, and slot reuse against a temporary PostgreSQL database.
+
+### External calendar availability (Outlook / ICS)
+
+In Outlook, open **Settings → Calendar → Shared calendars → Publish a calendar**, choose the smallest permission that exposes busy times, and copy the **ICS** link. In NexCal, sign in as the provider and paste it under **Admin → Settings → Kalender Eksternal (ICS)**. Other providers can use their public HTTPS or `webcal://` calendar link. Treat published links as private, since anyone with the link can read the published calendar.
+
+NexCal reads busy times for that provider. Slot browsing may use a feed downloaded in the last minute. Booking and patient rescheduling recheck the feed before saving. If the feed cannot be read, those bookings wait until it is reachable again or the provider disconnects it. Calendar changes must first appear in the feed published by Outlook or the other provider. Timed events use their calendar time zones and all-day events use the NexCal server's calendar day. Feeds using `RDATE`, `RECURRENCE-ID;RANGE=THISANDFUTURE`, or recurrences every second or minute are unsupported. Run `npm run test:calendar` to check ICS handling.
 
 ---
 

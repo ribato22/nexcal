@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { saveMultiwaSettings, saveGcalSettings, saveMidtransSettings } from "@/actions/settings";
+import { saveCalendarFeed, saveMultiwaSettings, saveGcalSettings, saveMidtransSettings } from "@/actions/settings";
 
 // ============================================================
 // Feedback Banner
@@ -23,6 +23,40 @@ function Feedback({ state }: { state: { error: string | null; success: boolean }
     );
   }
   return null;
+}
+
+export function CalendarFeedForm({ connected }: { connected: boolean }) {
+  const [state, formAction, isPending] = useActionState(saveCalendarFeed, { error: null, success: false });
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+      <h3 className="font-semibold text-slate-900 dark:text-white">Kalender Eksternal (ICS)</h3>
+      <p id="calendar-feed-help" className="mb-4 text-sm text-slate-600 dark:text-slate-300">
+        {connected ? "Kalender terhubung. " : ""}
+        Gunakan tautan ICS terbitan Outlook atau kalender lain untuk memblokir waktu sibuk.
+      </p>
+      <div aria-live="polite"><Feedback state={state} /></div>
+      <form action={formAction} className="space-y-3">
+        <label htmlFor="calendar-feed-url" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+          {connected ? "Tautan ICS pengganti" : "Tautan ICS"}
+        </label>
+        <input id="calendar-feed-url" name="calendarFeedUrl" type="password" autoComplete="off"
+          aria-describedby="calendar-feed-help" maxLength={2048} required
+          placeholder="https://… atau webcal://…"
+          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+        />
+        <button type="submit" disabled={isPending} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60">
+          {isPending ? "Memproses…" : "Simpan Kalender"}
+        </button>
+        {connected && (
+          <button type="submit" name="remove" value="true" formNoValidate disabled={isPending}
+            className="ml-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50 dark:text-red-400 disabled:opacity-60">
+            Putuskan
+          </button>
+        )}
+      </form>
+    </section>
+  );
 }
 
 // ============================================================

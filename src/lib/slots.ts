@@ -2,6 +2,7 @@ import {
   parse,
   format,
   addMinutes,
+  addDays,
   isBefore,
   isEqual,
   startOfDay,
@@ -190,9 +191,9 @@ function markBookedSlots(
 ): TimeSlot[] {
   const targetDate = startOfDay(date);
 
-  // Filter booking hanya untuk tanggal ini
+  const dayEndWithBuffer = addMinutes(addDays(targetDate, 1), newBufferMinutes);
   const dayBookings = bookings.filter(
-    (b) => startOfDay(b.startTime).getTime() === targetDate.getTime()
+    (b) => b.startTime < dayEndWithBuffer && addMinutes(b.endTime, b.bufferTime ?? 0) > targetDate
   );
 
   if (dayBookings.length === 0) {

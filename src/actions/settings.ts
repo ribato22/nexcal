@@ -4,6 +4,44 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { calendarFeedUrl } from "@/lib/calendar-feed-download";
+import { getCalendarBusyPeriods } from "@/lib/calendar-feed";
+
+export async function saveCalendarFeed(
+  _prevState: { error: string | null; success: boolean },
+  formData: FormData,
+): Promise<{ error: string | null; success: boolean }> {
+  const session = await auth();
+  if (!session?.user?.id) return { error: "Silakan masuk kembali.", success: false };
+
+  const value = formData.get("calendarFeedUrl");
+  const remove = formData.get("remove") === "true";
+  let url: string | null = null;
+  if (!remove) {
+    try {
+      if (typeof value !== "string" || value.length > 2048) throw new Error("Invalid URL");
+      url = calendarFeedUrl(value).href;
+    } catch {
+      return { error: "Masukkan tautan ICS publik dengan HTTPS atau webcal://.", success: false };
+    }
+    try {
+      await getCalendarBusyPeriods(url, new Date(), 0, true);
+    } catch {
+      return { error: "Tautan ICS tidak dapat dibaca. Periksa tautan dan pengaturan publikasi kalender.", success: false };
+    }
+  }
+
+  try {
+    await prisma.user.update({
+      where: { id: session.user.id },
+      data: { calendarFeedUrl: url },
+    });
+  } catch {
+    return { error: "Gagal menyimpan kalender eksternal.", success: false };
+  }
+  revalidatePath("/admin/settings");
+  return { error: null, success: true };
+}
 
 // ============================================================
 // Get Organization Settings

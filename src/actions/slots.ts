@@ -1,8 +1,9 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { CalendarFeedError, getCalendarBusyPeriods } from "@/lib/calendar-feed";
 import { getAvailableSlots, type TimeSlot, type ScheduleSession, type DateOverrideData, type ExistingBooking } from "@/lib/slots";
-import { startOfDay } from "date-fns";
+import { parse, startOfDay } from "date-fns";
 
 /**
  * Mengambil daftar provider (staf/praktisi) untuk halaman publik booking.
@@ -35,17 +36,18 @@ export async function getAvailableSlotsAction(
   try {
     const service = await prisma.serviceType.findUnique({
       where: { id: serviceTypeId },
-      select: { duration: true, bufferTime: true, userId: true },
+      select: { duration: true, bufferTime: true, userId: true, user: { select: { calendarFeedUrl: true } } },
     });
 
     if (!service) {
       return { slots: [], error: "Layanan tidak ditemukan." };
     }
 
-    const targetDate = new Date(dateStr);
+    const targetDate = parse(dateStr, "yyyy-MM-dd", new Date());
+    if (!Number.isFinite(+targetDate)) return { slots: [], error: "Tanggal tidak valid." };
     const userId = service.userId;
 
-    const [schedules, overrides, bookings] = await Promise.all([
+    const [schedules, overrides, bookings, calendarBusy] = await Promise.all([
       prisma.schedule.findMany({
         where: { userId, isActive: true },
         select: { dayOfWeek: true, startTime: true, endTime: true },
@@ -62,6 +64,7 @@ export async function getAvailableSlotsAction(
         },
         select: { startTime: true, endTime: true, serviceType: { select: { bufferTime: true } } },
       }),
+      getCalendarBusyPeriods(service.user.calendarFeedUrl, targetDate, service.bufferTime),
     ]);
 
     const scheduleSessions: ScheduleSession[] = schedules.map((s: { dayOfWeek: number; startTime: string; endTime: string }) => ({
@@ -87,14 +90,14 @@ export async function getAvailableSlotsAction(
       targetDate,
       scheduleSessions,
       dateOverrides,
-      existingBookings,
+      [...existingBookings, ...calendarBusy],
       service.duration,
       service.bufferTime
     );
 
     return { slots, error: null };
-  } catch {
-    return { slots: [], error: "Gagal memuat slot. Silakan coba lagi." };
+  } catch (error) {
+    return { slots: [], error: error instanceof CalendarFeedError ? error.message : "Gagal memuat slot. Silakan coba lagi." };
   }
 }
 
